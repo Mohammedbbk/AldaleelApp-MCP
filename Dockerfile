@@ -7,7 +7,7 @@ RUN npm install
 COPY . .
 
 # Install global dependencies
-RUN npm install -g exa-mcp-server @johnneerdael/netskope-mcp
+RUN npm install -g exa-mcp-server
 
 # Expose the gateway port
 EXPOSE 8000
