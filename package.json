@@ -1,0 +1,30 @@
+{
+  "name": "aldaleel-mcp",
+  "version": "1.0.0",
+  "description": "AI Daleel Travel Assistant with MCP",
+  "main": "gateway/index.js",
+  "scripts": {
+    "start": "node gateway/index.js"
+  },
+  "dependencies": {
+    "@mapbox/mapbox-sdk": "^0.15.3",
+    "@supabase/supabase-js": "^2.49.1",
+    "axios": "^1.8.4",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "exa-mcp-server": "^0.2.1",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "joi": "^17.13.3",
+    "js-yaml": "^4.1.0",
+    "mapbox-gl": "^3.1.2",
+    "openai": "^4.89.0",
+    "rate-limit-redis": "^4.2.0",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
+    "winston": "^3.17.0",
+    "ws": "^8.18.1",
+    "axios": "^1.8.4"
+
+  }
+}
