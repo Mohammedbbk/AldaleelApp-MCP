@@ -1,8 +1,9 @@
 const express = require('express');
-const axios = require('axios');
+// const axios = require('axios'); // Commented out as we'll use Brave MCP instead
 const cors = require('cors');
 const dotenv = require('dotenv');
 const { createServerLogger } = require('./server-logger');
+const axios = require('axios'); // Still needed for Brave MCP requests
 
 dotenv.config();
 const app = express();
@@ -11,9 +12,15 @@ const logger = createServerLogger('visa-requirements');
 app.use(cors());
 app.use(express.json());
 
-const SHERPA_API_KEY = process.env.SHERPA_API_KEY;
-const SHERPA_API_URL = 'https://requirements-api.sherpa.com/v2';
+// Commented out Sherpa API configuration
+// const SHERPA_API_KEY = process.env.SHERPA_API_KEY;
+// const SHERPA_API_URL = 'https://requirements-api.sherpa.com/v2';
 
+// Brave MCP configuration
+const BRAVE_MCP_URL = process.env.BRAVE_MCP_URL || 'http://localhost:8000';
+
+// Commented out original implementation
+/*
 async function getVisaRequirements(nationality, destination) {
   try {
     const response = await axios.get(`${SHERPA_API_URL}/travel-requirements`, {
@@ -34,6 +41,27 @@ async function getVisaRequirements(nationality, destination) {
     throw error;
   }
 }
+*/
+
+// New implementation using Brave MCP
+async function getVisaRequirements(nationality, destination) {
+  try {
+    const response = await axios.post(`${BRAVE_MCP_URL}/api/chat`, {
+      messages: [
+        {
+          role: 'user',
+          content: `What are the visa requirements for a ${nationality} citizen traveling to ${destination}? Please provide detailed information about visa types, required documents, length of stay, and any other relevant travel requirements.`
+        }
+      ],
+      stream: false
+    });
+
+    return response.data;
+  } catch (error) {
+    logger.error('Error fetching visa requirements from Brave MCP:', error);
+    throw error;
+  }
+}
 
 app.post('/visa-requirements', async (req, res) => {
   try {
@@ -45,21 +73,14 @@ app.post('/visa-requirements', async (req, res) => {
       });
     }
 
-    const requirements = await getVisaRequirements(nationality, destination);
+    const braveResponse = await getVisaRequirements(nationality, destination);
     
-    // Format data for LLM consumption
+    // Format data from Brave MCP response
     const formattedData = {
-      visaRequirements: requirements.data.map(req => ({
-        type: req.type,
-        category: req.category,
-        title: req.title,
-        description: req.description,
-        enforcement: req.enforcement,
-        documentTypes: req.documentTypes,
-        travelPurposes: req.travelPurposes,
-        lengthOfStay: req.lengthOfStay,
-        actions: req.actions
-      }))
+      visaRequirements: {
+        content: braveResponse.message?.content || "No information available",
+        source: "Brave MCP"
+      }
     };
 
     res.json(formattedData);

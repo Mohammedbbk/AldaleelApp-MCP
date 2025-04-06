@@ -13,11 +13,26 @@ app.use(cors());
 app.use(express.json());
 app.use(createRequestLogger(logger));
 
-const baseClient = mbxClient({ accessToken: process.env.MAPBOX_ACCESS_TOKEN });
-const directionsService = mbxDirections(baseClient);
+// Make sure the MAPBOX_ACCESS_TOKEN is properly set in your .env file
+// Check if the token is being loaded correctly
+console.log('Mapbox token available:', !!process.env.MAPBOX_ACCESS_TOKEN);
+
+// Add a fallback or error handling for missing token
+const baseClient = process.env.MAPBOX_ACCESS_TOKEN 
+  ? mbxClient({ accessToken: process.env.MAPBOX_ACCESS_TOKEN })
+  : null;
+
+const directionsService = baseClient 
+  ? mbxDirections(baseClient) 
+  : null;
 
 app.post('/directions', async (req, res) => {
   try {
+    if (!baseClient || !directionsService) {
+      return res.status(503).json({
+        error: 'Mapbox service unavailable - missing access token'
+      });
+    }
     const { origin, destination, waypoints } = req.body;
 
     const response = await directionsService
