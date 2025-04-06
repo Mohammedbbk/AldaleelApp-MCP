@@ -64,6 +64,7 @@ const checkSupabaseConnection = async () => {
   5. TripAdvisor Vacation Planner MCP Server:
      - Using uv to run the server.py
 */
+    // Update the Airbnb MCP Server configuration with better debugging options
 const servers = [
   {
     name: 'AI Itinerary Generator',
@@ -101,13 +102,15 @@ const servers = [
   },
   {
     name: 'Airbnb MCP Server',
-    command: `npx -y @openbnb/mcp-server-airbnb`,
+    command: `npx -y @openbnb/mcp-server-airbnb --port ${process.env.AIRBNB_PORT || 8007}`,
     port: process.env.AIRBNB_PORT || 8007,
     env: { 
       IGNORE_ROBOTS_TXT: process.env.IGNORE_ROBOTS_TXT || 'false',
-      PORT: process.env.AIRBNB_PORT || 8007
+      PORT: process.env.AIRBNB_PORT || 8007,
+      DEBUG: 'airbnb:*' // Add debug flag for more verbose output
     },
-    healthCheckPath: '/health'
+    healthCheckPath: '/health',
+    retries: 3 // Add retry attempts
   }
 ];
 
@@ -116,20 +119,34 @@ const waitForServer = async (name, url, timeout) => {
   const startTime = Date.now();
   const server = servers.find(s => s.name === name);
   const healthPath = server.healthCheckPath || '/health';
+  const maxRetries = server.retries || 1;
+  let retryCount = 0;
   
   while (Date.now() - startTime < timeout) {
     try {
-      await axios.get(`${url}${healthPath}`);
-      logger.info(`${name} is ready`);
+      logger.info(`Attempting to connect to ${name} at ${url}${healthPath} (Attempt ${retryCount + 1}/${maxRetries})`);
+      const response = await axios.get(`${url}${healthPath}`, { timeout: 5000 });
+      logger.info(`${name} is ready with status: ${JSON.stringify(response.data)}`);
       console.log(`${name} is ready`);
       return;
     } catch (error) {
-      // Log more detailed error information
-      logger.debug(`Waiting for ${name}... (${error.message})`);
+      retryCount++;
       
-      // Check if the server process is still running
-      if (error.code === 'ECONNREFUSED') {
-        logger.warn(`${name} is not responding at ${url}${healthPath}`);
+      // Log more detailed error information
+      if (error.response) {
+        // The server responded with a status code outside the 2xx range
+        logger.warn(`${name} responded with status ${error.response.status}: ${JSON.stringify(error.response.data)}`);
+      } else if (error.request) {
+        // The request was made but no response was received
+        logger.warn(`${name} did not respond to request: ${error.message}`);
+      } else {
+        // Something happened in setting up the request
+        logger.warn(`Error setting up request to ${name}: ${error.message}`);
+      }
+      
+      if (retryCount >= maxRetries) {
+        logger.warn(`Max retries (${maxRetries}) reached for ${name}`);
+        break;
       }
       
       await new Promise(resolve => setTimeout(resolve, 2000)); // Increase retry interval to 2 seconds
@@ -137,12 +154,12 @@ const waitForServer = async (name, url, timeout) => {
   }
   
   // Throw a more detailed error
-  const errorMsg = `Timeout waiting for ${name} to be ready at ${url}${healthPath}`;
+  const errorMsg = `Timeout waiting for ${name} to be ready at ${url}${healthPath} after ${retryCount} attempts`;
   logger.error(errorMsg);
   throw new Error(errorMsg);
 };
 
-// Update startMCPServers to handle errors better
+// Update startMCPServers to handle errors better and add direct server testing
 const startMCPServers = async () => {
   try {
     for (const server of servers) {
@@ -155,7 +172,18 @@ const startMCPServers = async () => {
         logger.info('Note: TripAdvisor MCP Server requires Python 3.10+ to run');
       }
       
-      exec(server.command, options, (error, stdout, stderr) => {
+      if (server.name === 'Airbnb MCP Server') {
+        logger.info('Starting Airbnb MCP Server with options:', JSON.stringify(options));
+        // Check if the package is installed
+        try {
+          require.resolve('@openbnb/mcp-server-airbnb');
+          logger.info('Airbnb MCP Server package is installed');
+        } catch (e) {
+          logger.error('Airbnb MCP Server package is not installed. Error:', e.message);
+        }
+      }
+      
+      const childProcess = exec(server.command, options, (error, stdout, stderr) => {
         if (error) {
           logger.error(`${server.name} Error: ${error.message}`);
           console.error(`${server.name} Error: ${error.message}`);
@@ -168,6 +196,23 @@ const startMCPServers = async () => {
         logger.info(`${server.name} Output: ${stdout}`);
         console.log(`${server.name} Output: ${stdout}`);
       });
+      
+      // Add real-time logging for stdout and stderr
+      if (server.name === 'Airbnb MCP Server') {
+        if (childProcess.stdout) {
+          childProcess.stdout.on('data', (data) => {
+            logger.info(`${server.name} stdout: ${data.toString().trim()}`);
+            console.log(`${server.name} stdout: ${data.toString().trim()}`);
+          });
+        }
+        
+        if (childProcess.stderr) {
+          childProcess.stderr.on('data', (data) => {
+            logger.warn(`${server.name} stderr: ${data.toString().trim()}`);
+            console.warn(`${server.name} stderr: ${data.toString().trim()}`);
+          });
+        }
+      }
       
       // Add delay between starting servers
       await new Promise(resolve => setTimeout(resolve, 2000));
@@ -183,6 +228,28 @@ const startMCPServers = async () => {
         } catch (error) {
           logger.error(`Failed to start ${server.name}: ${error.message}`);
           // Continue with other servers instead of failing completely
+          
+          // For Airbnb server specifically, try to diagnose the issue
+          if (server.name === 'Airbnb MCP Server') {
+            logger.info('Attempting to diagnose Airbnb MCP Server issue...');
+            
+            // Check if port is in use
+            exec(`lsof -i :${server.port}`, (error, stdout) => {
+              if (error) {
+                logger.info(`Port ${server.port} does not appear to be in use by another process`);
+              } else {
+                logger.error(`Port ${server.port} may be in use by another process:\n${stdout}`);
+              }
+            });
+            
+            // Try to manually check the server
+            try {
+              await axios.get(`http://localhost:${server.port}`, { timeout: 2000 });
+              logger.info(`Airbnb server is responding on port ${server.port} but health check failed`);
+            } catch (e) {
+              logger.error(`Airbnb server is not responding on port ${server.port}: ${e.message}`);
+            }
+          }
         }
       }
     }
@@ -691,3 +758,31 @@ const startTripAdvisorServer = () => {
     }
   });
 };
+
+// Add a dedicated endpoint to test the Airbnb MCP Server connection
+app.get('/test-airbnb-connection', async (req, res) => {
+  try {
+    const airbnbPort = process.env.AIRBNB_PORT || 8007;
+    const response = await axios.get(`http://localhost:${airbnbPort}/health`, { timeout: 5000 });
+    res.json({
+      status: 'success',
+      message: 'Successfully connected to Airbnb MCP Server',
+      serverResponse: response.data
+    });
+  } catch (error) {
+    let errorDetails = {
+      message: error.message
+    };
+    
+    if (error.response) {
+      errorDetails.status = error.response.status;
+      errorDetails.data = error.response.data;
+    }
+    
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to connect to Airbnb MCP Server',
+      error: errorDetails
+    });
+  }
+});
