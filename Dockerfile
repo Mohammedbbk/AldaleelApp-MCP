@@ -12,4 +12,5 @@ RUN npm install -g exa-mcp-server
 # Expose the gateway port
 EXPOSE 8000
 
-CMD ["node", "gateway/index.js"]
+# Update the CMD to use the correct path
+CMD ["node", "index.js"]
