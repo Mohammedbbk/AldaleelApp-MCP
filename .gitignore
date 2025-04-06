@@ -5,3 +5,4 @@ logs/
 .env
 *.pyc
 .DS_Store
+.env.example
