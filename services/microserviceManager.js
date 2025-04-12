@@ -11,7 +11,7 @@ const waitForServer = async (name, url, defaultTimeout) => {
   const healthPath = server.healthCheckPath || '/health';
   const maxRetries = server.retries || 1;
   const timeout = server.healthCheckTimeout || defaultTimeout;
-  const retryInterval = 2000; // Time between retries in milliseconds
+  const retryInterval = server.retryIntervalMs || 2000; // Use server-specific retry interval or default to 2000ms
   let retryCount = 0;
   
   while (Date.now() - startTime < timeout) {
@@ -39,11 +39,12 @@ const waitForServer = async (name, url, defaultTimeout) => {
         break;
       }
       
+      logger.info(`Waiting ${retryInterval}ms before next retry for ${name}...`);
       await new Promise(resolve => setTimeout(resolve, retryInterval));
     }
   }
   
-  const errorMsg = `Timeout waiting for ${name} to be ready at ${url}${healthPath} after ${retryCount} attempts`;
+  const errorMsg = `Timeout waiting for ${name} to be ready at ${url}${healthPath} after ${retryCount} attempts within ${timeout}ms`;
   logger.error(errorMsg);
   throw new Error(errorMsg);
 };
@@ -100,6 +101,7 @@ const startMCPServers = async () => {
         }
       }
       
+      logger.info(`Waiting ${retryInterval}ms before next retry for ${name}...`);
       await new Promise(resolve => setTimeout(resolve, retryInterval));
     }
 
