@@ -4,9 +4,12 @@ const env = require('./env');
 const servers = [
   {
     name: 'AI Itinerary Generator',
-    command: `node ${path.join(__dirname, '..', 'gateway', 'openai-server.js')}`,
+    command: `node ${path.join(__dirname, '..', 'openai-server.js')}`,
     port: env.AI_SERVER_PORT,
-    env: { OPENAI_API_KEY: env.OPENAI_API_KEY }
+    env: { OPENAI_API_KEY: env.OPENAI_API_KEY },
+    healthCheckPath: '/health',
+    healthCheckTimeout: 30000,
+    retries: 3
   },
   {
     name: 'Travel Planner MCP Server',
@@ -22,7 +25,7 @@ const servers = [
   },
   {
     name: 'TripAdvisor MCP Server',
-    command: 'python3 -m flask run --host=127.0.0.1 --port 8006',
+    command: 'python3 -m flask run --host=0.0.0.0 --port 8006',
     port: env.TRIPADVISOR_PORT || 8006,
     env: { 
       TRIPADVISOR_API_KEY: env.TRIPADVISOR_API_KEY,

@@ -11,12 +11,15 @@ const waitForServer = async (name, url, defaultTimeout) => {
   const healthPath = server.healthCheckPath || '/health';
   const maxRetries = server.retries || 1;
   const timeout = server.healthCheckTimeout || defaultTimeout;
+  const retryInterval = 2000; // Time between retries in milliseconds
   let retryCount = 0;
   
   while (Date.now() - startTime < timeout) {
     try {
       logger.info(`Attempting to connect to ${name} at ${url}${healthPath} (Attempt ${retryCount + 1}/${maxRetries})`);
-      const response = await axios.get(`http://127.0.0.1:${server.port}${healthPath}`, { timeout: 5000 });
+      const response = await axios.get(`http://127.0.0.1:${server.port}${healthPath}`, { 
+        timeout: Math.min(5000, timeout / maxRetries) // Ensure individual request timeout is reasonable
+      });
       logger.info(`${name} is ready with status: ${JSON.stringify(response.data)}`);
       console.log(`${name} is ready`);
       return;
@@ -36,7 +39,7 @@ const waitForServer = async (name, url, defaultTimeout) => {
         break;
       }
       
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, retryInterval));
     }
   }
   
@@ -97,7 +100,7 @@ const startMCPServers = async () => {
         }
       }
       
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, retryInterval));
     }
 
     if (process.env.WAIT_FOR_SERVERS === 'true') {
