@@ -39,8 +39,10 @@ const waitForServer = async (name, url, defaultTimeout) => {
         break;
       }
       
-      logger.info(`Waiting ${retryInterval}ms before next retry for ${name}...`);
-      await new Promise(resolve => setTimeout(resolve, retryInterval));
+      // Add a fixed delay between starting servers
+      const serverStartDelayMs = 2000;
+      logger.info(`Waiting ${serverStartDelayMs}ms before starting next server...`);
+      await new Promise(resolve => setTimeout(resolve, serverStartDelayMs));
     }
   }
   
@@ -101,8 +103,10 @@ const startMCPServers = async () => {
         }
       }
       
-      logger.info(`Waiting ${retryInterval}ms before next retry for ${name}...`);
-      await new Promise(resolve => setTimeout(resolve, retryInterval));
+      // Add a fixed delay between starting servers
+      const serverStartDelayMs = 2000;
+      logger.info(`Waiting ${serverStartDelayMs}ms before starting next server...`);
+      await new Promise(resolve => setTimeout(resolve, serverStartDelayMs));
     }
 
     if (process.env.WAIT_FOR_SERVERS === 'true') {
