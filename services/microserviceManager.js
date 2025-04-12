@@ -5,17 +5,18 @@ const servers = require('../config/servers.config');
 
 const logger = createServerLogger('MicroserviceManager');
 
-const waitForServer = async (name, url, timeout) => {
+const waitForServer = async (name, url, defaultTimeout) => {
   const startTime = Date.now();
   const server = servers.find(s => s.name === name);
   const healthPath = server.healthCheckPath || '/health';
   const maxRetries = server.retries || 1;
+  const timeout = server.healthCheckTimeout || defaultTimeout;
   let retryCount = 0;
   
   while (Date.now() - startTime < timeout) {
     try {
       logger.info(`Attempting to connect to ${name} at ${url}${healthPath} (Attempt ${retryCount + 1}/${maxRetries})`);
-      const response = await axios.get(`${url}${healthPath}`, { timeout: 5000 });
+      const response = await axios.get(`http://127.0.0.1:${server.port}${healthPath}`, { timeout: 5000 });
       logger.info(`${name} is ready with status: ${JSON.stringify(response.data)}`);
       console.log(`${name} is ready`);
       return;

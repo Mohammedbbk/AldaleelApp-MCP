@@ -15,6 +15,7 @@ const tripRoutes = require('./routes/tripRoutes');
 const healthRoutes = require('./routes/healthRoutes');
 const accommodationRoutes = require('./routes/accommodationRoutes');
 const proxyRoutes = require('./routes/proxyRoutes');
+const eventRoutes = require('./routes/eventRoutes');
 
 // Import error handler
 const errorHandler = require('./middleware/errorHandler');
@@ -67,6 +68,7 @@ app.use(userLimiter);
 app.use('/api/trips', tripRoutes);
 app.use('/api/accommodations', accommodationRoutes);
 app.use('/api/proxy', proxyRoutes);
+app.use('/api/events', eventRoutes);
 app.use('/health', healthRoutes);
 
 // Swagger documentation route

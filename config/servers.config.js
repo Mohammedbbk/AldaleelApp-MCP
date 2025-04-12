@@ -22,26 +22,30 @@ const servers = [
   },
   {
     name: 'TripAdvisor MCP Server',
-    command: 'python3 -m flask run --host=0.0.0.0 --port 8006',
+    command: 'python3 -m flask run --host=127.0.0.1 --port 8006',
     port: env.TRIPADVISOR_PORT || 8006,
     env: { 
       TRIPADVISOR_API_KEY: env.TRIPADVISOR_API_KEY,
       PYTHONUNBUFFERED: '1',
       FLASK_APP: 'server.py',
       FLASK_ENV: 'development'
-    }
+    },
+    healthCheckTimeout: 30000,
+    retries: 3
   },
   {
     name: 'Airbnb MCP Server',
-    command: `npx -y @openbnb/mcp-server-airbnb --port ${env.AIRBNB_PORT || 8007}`,
+    command: `npx -y @openbnb/mcp-server-airbnb --port ${env.AIRBNB_PORT || 8007} --host 127.0.0.1`,
     port: env.AIRBNB_PORT || 8007,
     env: { 
       IGNORE_ROBOTS_TXT: process.env.IGNORE_ROBOTS_TXT || 'false',
       PORT: env.AIRBNB_PORT || 8007,
-      DEBUG: 'airbnb:*'
+      DEBUG: 'airbnb:*',
+      HOST: '127.0.0.1'
     },
     healthCheckPath: '/health',
-    retries: 3
+    healthCheckTimeout: 60000,
+    retries: 5
   }
 ];
 
