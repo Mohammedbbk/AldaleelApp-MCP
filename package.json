@@ -2,9 +2,9 @@
   "name": "aldaleel-mcp",
   "version": "1.0.0",
   "description": "AI Daleel Travel Assistant with MCP",
-  "main": "gateway/index.js",
+  "main": "server.js",
   "scripts": {
-    "start": "node gateway/index.js",
+    "start": "node server.js",
     "start:live-events": "node live-events-server.js",
     "start:travel-planner": "node mapbox-travel-planner.js"
   },
