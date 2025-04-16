@@ -9,7 +9,7 @@ const { createServerLogger } = require('./server-logger'); // Adjust path if nee
 // --- Configuration ---
 const PORT = process.env.CULTURE_INSIGHTS_PORT || 8008; // Use a new default port
 // Point to the same LLM service as the visa server
-const LLM_SERVICE_URL = process.env.BRAVE_MCP_URL || `http://localhost:${process.env.BRAVE_PORT || 8005}`;
+const LLM_SERVICE_URL = process.env.BRAVE_MCP_URL || `http://localhost:${process.env.BRAVE_PORT || 3002}`;
 const LLM_API_ENDPOINT = process.env.BRAVE_API_ENDPOINT || '/api/chat';
 const REQUEST_TIMEOUT = parseInt(process.env.CULTURE_REQUEST_TIMEOUT) || 30000; // 30 seconds timeout
 
