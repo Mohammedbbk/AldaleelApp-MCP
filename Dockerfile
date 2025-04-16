@@ -53,7 +53,7 @@ COPY . .
 # --- Ports ---
 # Expose all ports used by the gateway and microservices
 # Adjust if your port list changes
-EXPOSE 8000 8001 8004 8005 8006 8007 8008 3002
+EXPOSE 8000 8001 8004 8005 8006 8007 8008 8009 3002
 
 # --- Runtime Command ---
 # Use the NEW entry point: server.js in the root directory
