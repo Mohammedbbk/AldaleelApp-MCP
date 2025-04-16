@@ -124,7 +124,7 @@ app.post('/visa-requirements', async (req, res) => {
 });
 
 // --- Server Start ---
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   logger.info(`Visa Requirements Server started successfully on port ${PORT}`);
   logger.info(`Configured to query LLM at: ${BRAVE_MCP_URL}${BRAVE_API_ENDPOINT}`);
   // Add a warning if the default URL looks like the gateway itself

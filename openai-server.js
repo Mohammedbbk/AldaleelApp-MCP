@@ -61,9 +61,9 @@ app.post('/generate', async (req, res) => {
 
 // Start server
 const port = process.env.AI_SERVER_PORT || env.AI_SERVER_PORT || 8001;
-app.listen(port, () => {
+app.listen(port, '0.0.0.0', () => {
   logger.info(`OpenAI server running on port ${port}`);
-  console.log(`OpenAI server running on port ${port}`);
+  console.log(`OpenAI Service listening on port ${port}`);
 });
 
 // Handle graceful shutdown

@@ -59,6 +59,6 @@ app.get('/health', (req, res) => {
 });
 
 const PORT = process.env.LIVE_EVENTS_PORT || 8005;
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   logger.info(`Live Events MCP Server running on port ${PORT}`);
 });

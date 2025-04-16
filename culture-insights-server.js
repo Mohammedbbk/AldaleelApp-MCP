@@ -112,7 +112,7 @@ app.post('/culture-insights', async (req, res) => {
 });
 
 // --- Server Start ---
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   logger.info(`Culture Insights Server started successfully on port ${PORT}`);
   logger.info(`Configured to query LLM at: ${LLM_SERVICE_URL}${LLM_API_ENDPOINT}`);
 });
