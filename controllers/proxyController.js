@@ -11,23 +11,32 @@ const AIRBNB_PORT = env.AIRBNB_PORT || 8007;
 // const CULTURE_INSIGHTS_PORT = process.env.CULTURE_INSIGHTS_PORT || 8008; // No longer directly used for URL construction
 
 // Fetch the full service URLs from environment variables
-const VISA_SERVICE_URL = env.VISA_SERVICE_URL; // e.g., [https://aldaleel-visa-service.onrender.com](https://aldaleel-visa-service.onrender.com)
-const CULTURE_SERVICE_URL = env.CULTURE_SERVICE_URL; // e.g., [https://aldaleel-culture-service.onrender.com](https://aldaleel-culture-service.onrender.com)
+const VISA_SERVICE_URL = env.VISA_SERVICE_URL;
+const CULTURE_SERVICE_URL = env.CULTURE_SERVICE_URL;
 
 // Proxy visa requirements request to visa-requirements-server
 async function proxyVisaRequest(requestData) {
-  // Use the environment variable for the full URL
-  const targetUrl = `${VISA_SERVICE_URL}/visa-requirements`;
+  // Use the environment variable for the full URL if available, otherwise fallback to localhost
+  const targetUrl = VISA_SERVICE_URL 
+    ? `${VISA_SERVICE_URL}/visa-requirements` 
+    : `http://localhost:${env.VISA_REQUIREMENTS_PORT || 8009}/visa-requirements`;
+  
   logger.info(`Proxying visa request to: ${targetUrl}`, requestData);
   try {
-    // Make sure VISA_SERVICE_URL is defined (handled by env.js validation)
-    if (!VISA_SERVICE_URL) {
-        throw new Error('VISA_SERVICE_URL environment variable is not set.');
-    }
-    const response = await axios.post(targetUrl, requestData);
+    const response = await axios.post(targetUrl, requestData, { timeout: env.VISA_REQUEST_TIMEOUT || 30000 });
     return response.data;
   } catch (error) {
     logger.error(`Error proxying to Visa service (${targetUrl}):`, error.message);
+    
+    // If connection refused, provide a more helpful error
+    if (error.code === 'ECONNREFUSED') {
+      throw {
+        message: `Visa service is unavailable. The service at ${targetUrl} refused the connection. Check if the service is running and the URL is correct.`,
+        code: 'VISA_SERVICE_UNAVAILABLE',
+        details: error.message
+      };
+    }
+    
     if (error.response) {
       throw {
         message: error.response.data?.message || 'Visa service error',
@@ -38,25 +47,35 @@ async function proxyVisaRequest(requestData) {
     }
     throw {
       message: error.message || 'Visa service unavailable or network error',
-      code: 'VISA_SERVICE_UNAVAILABLE'
+      code: 'VISA_SERVICE_UNAVAILABLE',
+      details: error.message // Include original error details
     };
   }
 }
 
 // Helper function to proxy culture insights requests
 async function proxyCultureInsightsRequest(requestData) {
-  // Use the environment variable for the full URL
-  const targetUrl = `${CULTURE_SERVICE_URL}/culture-insights`;
+  // Use the environment variable for the full URL if available, otherwise fallback to localhost
+  const targetUrl = CULTURE_SERVICE_URL 
+    ? `${CULTURE_SERVICE_URL}/culture-insights` 
+    : `http://localhost:${env.CULTURE_INSIGHTS_PORT || 8008}/culture-insights`;
+  
   logger.info(`Proxying culture request to: ${targetUrl}`, requestData);
   try {
-     // Make sure CULTURE_SERVICE_URL is defined (handled by env.js validation)
-    if (!CULTURE_SERVICE_URL) {
-        throw new Error('CULTURE_SERVICE_URL environment variable is not set.');
-    }
-    const response = await axios.post(targetUrl, requestData);
+    const response = await axios.post(targetUrl, requestData, { timeout: env.CULTURE_REQUEST_TIMEOUT || 30000 });
     return response.data;
   } catch (error) {
     logger.error(`Error proxying to Culture service (${targetUrl}):`, error.message);
+    
+    // If connection refused, provide a more helpful error
+    if (error.code === 'ECONNREFUSED') {
+      throw {
+        message: `Culture service is unavailable. The service at ${targetUrl} refused the connection. Check if the service is running and the URL is correct.`,
+        code: 'CULTURE_SERVICE_UNAVAILABLE',
+        details: error.message
+      };
+    }
+    
     if (error.response) {
       throw {
         message: error.response.data?.message || 'Culture service error',
@@ -67,16 +86,15 @@ async function proxyCultureInsightsRequest(requestData) {
     }
     throw {
       message: error.message || 'Culture service unavailable or network error',
-      code: 'CULTURE_SERVICE_UNAVAILABLE'
+      code: 'CULTURE_SERVICE_UNAVAILABLE',
+      details: error.message // Include original error details
     };
   }
 }
 
 async function testAirbnbConnection() {
-  // This might also need updating if the Airbnb service is deployed separately
-  // For now, assuming it might still run locally or needs its own URL env var if deployed.
-  // If deployed, add AIRBNB_SERVICE_URL to env.js and use it here.
-  const targetUrl = `http://localhost:${AIRBNB_PORT}/health`; // Keep as is for now, or update if needed
+  // Assuming Airbnb service runs locally or needs its own URL if deployed separately
+  const targetUrl = `http://localhost:${env.AIRBNB_PORT || 8007}/health`; 
   logger.info(`Testing Airbnb connection to: ${targetUrl}`);
   try {
     const response = await axios.get(targetUrl);
