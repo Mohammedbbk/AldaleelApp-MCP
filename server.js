@@ -58,6 +58,8 @@ const logger = createServerLogger('Gateway');
 
 // Initialize Express app
 const app = express();
+// Trust proxy for correct IP/protocol detection (important for rate limiting, etc.)
+app.set('trust proxy', 1);
 
 // --- IMPORTANT FIX ---
 // Trust the first proxy hop (like Render's load balancer)

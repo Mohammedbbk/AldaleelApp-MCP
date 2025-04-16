@@ -79,12 +79,19 @@ class AIService {
   parseItineraryResponse(response) {
     try {
       const content = response.data.content;
-      return typeof content === 'string' ? JSON.parse(content) : content;
+      const parsed = typeof content === 'string' ? JSON.parse(content) : content;
+      // If parsed is an object and has at least one expected key, return as is
+      if (parsed && (parsed.places || parsed.tips || parsed.culturalNotes || parsed.safetyTips || parsed.additionalInfo)) {
+        return parsed;
+      }
+      // Fallback: wrap as additionalInfo
+      return { additionalInfo: typeof content === 'string' ? content : JSON.stringify(content) };
     } catch (error) {
       logger.error('Error parsing itinerary as JSON:', error);
+      const rawContent = response?.data?.content || '';
       return {
-        rawContent: response.data.content,
-        parsingError: "The AI response couldn't be parsed as JSON. Please see rawContent."
+        additionalInfo: rawContent,
+        parsingError: "The AI response couldn't be parsed as JSON."
       };
     }
   }

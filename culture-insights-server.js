@@ -15,6 +15,7 @@ const REQUEST_TIMEOUT = parseInt(process.env.CULTURE_REQUEST_TIMEOUT) || 30000; 
 
 // --- Initialization ---
 const app = express();
+
 const logger = createServerLogger('culture-insights'); // Use specific logger name
 
 // --- Middleware ---

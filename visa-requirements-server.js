@@ -16,6 +16,7 @@ const REQUEST_TIMEOUT = parseInt(process.env.VISA_REQUEST_TIMEOUT) || 25000; // 
 
 // --- Initialization ---
 const app = express();
+
 const logger = createServerLogger('visa-requirements'); // Use specific logger name
 
 // --- Middleware ---
@@ -89,12 +90,28 @@ app.post('/visa-requirements', async (req, res) => {
   try {
     const visaContent = await getVisaInfoFromLLM(nationality, destination);
 
+    // --- Parse the LLM response into structured fields ---
+    function parseVisaRequirements(rawContent) {
+      // Simple regex-based parser for demonstration
+      const type = /Type:\s*(.+)/i.exec(rawContent)?.[1] || '';
+      const processingTime = /Processing Time:\s*(.+)/i.exec(rawContent)?.[1] || '';
+      const requiredDocumentsMatch = /Required Documents:\s*([\s\S]*?)(?:\n[A-Z][a-z]+:|$)/i.exec(rawContent);
+      const requiredDocuments = requiredDocumentsMatch
+        ? requiredDocumentsMatch[1].split('\n').map(line => line.replace(/^- /, '').trim()).filter(Boolean)
+        : [];
+      const notes = /Notes:\s*([\s\S]*)/i.exec(rawContent)?.[1] || '';
+      // If at least one field is filled, treat as structured
+      if (type || processingTime || requiredDocuments.length > 0 || notes) {
+        return { type, processingTime, requiredDocuments, notes };
+      }
+      // Otherwise, fallback to raw content
+      return { content: rawContent };
+    }
+
+    const structured = parseVisaRequirements(visaContent);
     res.json({
       status: 'success',
-      visaRequirements: {
-        content: visaContent,
-        source: "LLM Information Service" // Generic source name
-      }
+      visaRequirements: structured
     });
   } catch (error) {
     // Error already logged in helper function

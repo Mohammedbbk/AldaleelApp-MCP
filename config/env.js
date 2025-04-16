@@ -40,6 +40,7 @@ validateEnv();
 
 module.exports = {
   PORT: process.env.PORT || 8000,
+
   OPENAI_API_KEY: process.env.OPENAI_API_KEY,
   AI_SERVER_PORT: process.env.AI_SERVER_PORT,
   // DATA_SERVER_PORT is not used by any configured service
