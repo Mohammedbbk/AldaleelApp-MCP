@@ -91,6 +91,19 @@ const servers = [
     healthCheckTimeout: 35000,
     retries: 5
   },
+  // Add Brave/LLM Service configuration
+  {
+    name: 'Brave LLM Service',
+    command: `node ${path.join(__dirname, '..', 'brave-llm-server.js')}`,
+    port: env.BRAVE_PORT || 3002, // Uses port 3002
+    env: {
+      PORT: env.BRAVE_PORT || 3002,
+      // Add any other environment variables needed by the Brave LLM service
+    },
+    healthCheckPath: '/health',
+    healthCheckTimeout: 30000,
+    retries: 3
+  },
   // --- REMOVED DUPLICATE AI ENTRY ---
 ];
 
