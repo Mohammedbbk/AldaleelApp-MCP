@@ -48,7 +48,21 @@ const servers = [
     },
     healthCheckPath: '/health',
     healthCheckTimeout: 60000,
-    retries: 5
+  },
+  {
+    name: 'Culture Insights Server',
+    command: `node ${path.join(__dirname, '..', 'culture-insights-server.js')}`,
+    port: env.CULTURE_INSIGHTS_PORT || 8008, // Use a default or env var
+    env: { 
+      BRAVE_MCP_URL: env.BRAVE_MCP_URL, // Pass LLM URL
+      BRAVE_API_ENDPOINT: env.BRAVE_API_ENDPOINT, // Pass LLM endpoint
+      BRAVE_PORT: env.BRAVE_PORT, // Pass LLM port if needed by the service
+      CULTURE_INSIGHTS_PORT: env.CULTURE_INSIGHTS_PORT || 8008,
+      CULTURE_REQUEST_TIMEOUT: env.CULTURE_REQUEST_TIMEOUT
+    },
+    healthCheckPath: '/health',
+    healthCheckTimeout: 35000, // Slightly longer timeout for potential LLM calls
+    retries: 5 // Keep the higher retry count
   }
 ];
 

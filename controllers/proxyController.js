@@ -28,7 +28,29 @@ async function proxyVisaRequest(requestData) {
   }
 }
 
-// Test connection to Airbnb MCP server
+// Helper function to proxy culture insights requests
+async function proxyCultureInsightsRequest(requestData) {
+  const CULTURE_INSIGHTS_PORT = process.env.CULTURE_INSIGHTS_PORT || 8008;
+  try {
+    logger.info('Proxying culture insights request:', requestData);
+    const response = await axios.post(`http://localhost:${CULTURE_INSIGHTS_PORT}/culture-insights`, requestData);
+    return response.data;
+  } catch (error) {
+    logger.error('Error in proxyCultureInsightsRequest:', error);
+    if (error.response) {
+      throw {
+        message: error.response.data.message || 'Culture service error',
+        code: 'CULTURE_SERVICE_ERROR',
+        response: error.response
+      };
+    }
+    throw {
+      message: error.message || 'Culture service unavailable',
+      code: 'CULTURE_SERVICE_UNAVAILABLE'
+    };
+  }
+}
+
 async function testAirbnbConnection() {
   try {
     logger.info('Testing Airbnb connection');
@@ -50,5 +72,6 @@ async function testAirbnbConnection() {
 
 module.exports = {
   proxyVisaRequest,
+  proxyCultureInsightsRequest, // Add the new function
   testAirbnbConnection
 };

@@ -1,8 +1,7 @@
 const requiredEnvVars = [
   'OPENAI_API_KEY',
   'SUPABASE_URL',
-  'SUPABASE_KEY',
-  'EXA_API_KEY'
+  'SUPABASE_KEY'
 ];
 
 function validateEnv() {
@@ -12,4 +11,4 @@ function validateEnv() {
   }
 }
 
-validateEnv(); 
+validateEnv();

@@ -44,4 +44,24 @@ router.get('/test-airbnb-connection', async (req, res) => {
   }
 });
 
+// Proxy culture insights request
+router.post('/culture-insights', async (req, res) => {
+  try {
+    const result = await proxyController.proxyCultureInsightsRequest(req.body);
+    res.json({
+      status: 'success',
+      data: result
+    });
+  } catch (error) {
+    logger.error('Error proxying culture insights request:', error);
+    const statusCode = error.response?.status || 502;
+    res.status(statusCode).json({
+      status: 'error',
+      code: error.code || 'PROXY_ERROR',
+      message: 'Failed to proxy culture insights request',
+      details: error.message
+    });
+  }
+});
+
 module.exports = router;
