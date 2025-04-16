@@ -7,7 +7,7 @@ const axios = require('axios');
 const { createServerLogger } = require('./server-logger'); // Adjust path if needed
 
 // --- Configuration ---
-const PORT = process.env.VISA_REQUIREMENTS_PORT || 8007;
+const PORT = process.env.VISA_REQUIREMENTS_PORT || 8009;
 // IMPORTANT: Default URL corrected - Ensure BRAVE_MCP_URL points to the ACTUAL Brave/LLM service URL/Port
 // Do NOT default to the gateway port (8000) unless the gateway specifically handles /api/chat for Brave.
 const BRAVE_MCP_URL = process.env.BRAVE_MCP_URL || `http://localhost:${process.env.BRAVE_PORT || 8005}`; // Example: Using BRAVE_PORT, defaulting to 8005

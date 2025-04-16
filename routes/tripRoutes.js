@@ -3,6 +3,7 @@ const { validateTravelPlanInput } = require('../middleware/validateInput');
 const tripService = require('../services/tripService');
 const aiService = require('../services/aiService');
 const { createServerLogger } = require('../server-logger');
+const { v4: uuidv4 } = require('uuid');
 
 const router = express.Router();
 const logger = createServerLogger('TripRoutes');
@@ -12,6 +13,7 @@ router.post('/generate', validateTravelPlanInput, async (req, res) => {
   try {
     const {
       destination,
+      
       days,
       budget,
       interests = [],
@@ -32,7 +34,7 @@ router.post('/generate', validateTravelPlanInput, async (req, res) => {
       dietaryRestrictions
     });
 
-    const tripId = Date.now().toString();
+    const tripId = uuidv4();
     const itinerary = await aiService.generateItinerary({
       destination,
       days,

@@ -1,3 +1,5 @@
+// Propose changes to AldaleelMCP/config/env.js
+
 const dotenv = require('dotenv');
 
 dotenv.config();
@@ -10,6 +12,8 @@ const requiredEnvVars = [
   'MAPBOX_API_KEY',     // Used by Travel Planner MCP
   'TICKETMASTER_API_KEY', // Used by Live Events MCP
   'TRIPADVISOR_API_KEY',  // Used by TripAdvisor MCP
+  'VISA_SERVICE_URL',   // ADDED: Full URL for the Visa microservice
+  'CULTURE_SERVICE_URL', // ADDED: Full URL for the Culture microservice
   // Ports are needed if defaults are overridden, but let's not make them strictly required
   // 'AI_SERVER_PORT',
   // 'TRAVEL_PLANNER_PORT',
@@ -18,12 +22,17 @@ const requiredEnvVars = [
   // 'AIRBNB_PORT' // Airbnb server is configured but doesn't need specific API keys here
 ];
 
-
-
 const validateEnv = () => {
   const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
   if (missingEnvVars.length > 0) {
-    throw new Error(`Missing required environment variables: ${missingEnvVars.join(', ')}`);
+    // Provide a more helpful error message for URL variables
+    const detailedMissing = missingEnvVars.map(varName => {
+        if (varName.endsWith('_URL')) {
+            return `${varName} (e.g., [https://your-service-name.onrender.com](https://your-service-name.onrender.com) or http://internal-service-name:port)`;
+        }
+        return varName;
+    });
+    throw new Error(`Missing required environment variables: ${detailedMissing.join(', ')}`);
   }
 };
 
@@ -43,9 +52,9 @@ module.exports = {
   LIVE_EVENTS_PORT: process.env.LIVE_EVENTS_PORT,
   TRIPADVISOR_API_KEY: process.env.TRIPADVISOR_API_KEY,
   TRIPADVISOR_PORT: process.env.TRIPADVISOR_PORT || 8006,
-  AIRBNB_PORT: process.env.AIRBNB_PORT || 8007, // Added for consistency with servers.config.js
-  VISA_REQUIREMENTS_PORT: process.env.VISA_REQUIREMENTS_PORT || 8007,
-  CULTURE_INSIGHTS_PORT: process.env.CULTURE_INSIGHTS_PORT || 8008,
+  AIRBNB_PORT: process.env.AIRBNB_PORT || 8007, // Keep for potential local testing/other uses
+  VISA_REQUIREMENTS_PORT: process.env.VISA_REQUIREMENTS_PORT || 8009, // Keep for potential local testing
+  CULTURE_INSIGHTS_PORT: process.env.CULTURE_INSIGHTS_PORT || 8008, // Keep for potential local testing
   BRAVE_MCP_URL: process.env.BRAVE_MCP_URL, // Used by Visa and Culture services
   BRAVE_API_ENDPOINT: process.env.BRAVE_API_ENDPOINT, // Used by Visa and Culture services
   BRAVE_PORT: process.env.BRAVE_PORT, // Used by Visa and Culture services
@@ -53,6 +62,11 @@ module.exports = {
   CULTURE_REQUEST_TIMEOUT: process.env.CULTURE_REQUEST_TIMEOUT,
   // BRAVE_API_KEY is not used by any configured service
   // BRAVE_API_KEY: process.env.BRAVE_API_KEY,
+
+  // ADDED: Service URLs for deployed environments
+  VISA_SERVICE_URL: process.env.VISA_SERVICE_URL,
+  CULTURE_SERVICE_URL: process.env.CULTURE_SERVICE_URL,
+
   // BRAVE_PORT is not used by any configured service
   // BRAVE_PORT: process.env.BRAVE_PORT,
   WAIT_FOR_SERVERS: process.env.WAIT_FOR_SERVERS === 'true',

@@ -8,7 +8,7 @@ const env = require('./config/env');
 const { createServerLogger, createRequestLogger } = require('./server-logger');
 
 // Import middleware
-const userLimiter = require('./middleware/rateLimiter');
+const userLimiter = require('./middleware/rateLimiter'); // Assuming rateLimit setup is inside this file
 
 // Import routes
 const tripRoutes = require('./routes/tripRoutes');
@@ -34,12 +34,13 @@ const swaggerOptions = {
     },
     servers: [
       {
-        url: `http://localhost:${env.PORT}`,
-        description: 'Development server'
+        // You might want to update this dynamically based on NODE_ENV for better docs
+        url: env.NODE_ENV === 'production' ? 'https://aldaleelapp-mcp.onrender.com' : `http://localhost:${env.PORT}`,
+        description: env.NODE_ENV === 'production' ? 'Production server' : 'Development server'
       }
     ]
   },
-  apis: ['./routes/*.js']
+  apis: ['./routes/*.js'] // Make sure this points to files with swagger annotations
 };
 
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
@@ -58,38 +59,64 @@ const logger = createServerLogger('Gateway');
 // Initialize Express app
 const app = express();
 
+// --- IMPORTANT FIX ---
+// Trust the first proxy hop (like Render's load balancer)
+// This is crucial for express-rate-limit to work correctly behind a proxy
+app.set('trust proxy', 1);
+// -------------------
+
 // Apply global middleware
-app.use(cors());
-app.use(express.json());
-app.use(createRequestLogger(logger));
-app.use(userLimiter);
+app.use(cors()); // Enable CORS - consider more specific origins for production
+app.use(express.json()); // Parse JSON bodies
+app.use(createRequestLogger(logger)); // Log requests
+app.use(userLimiter); // Apply rate limiting AFTER trusting the proxy
 
 // Mount routes
 app.use('/api/trips', tripRoutes);
 app.use('/api/accommodations', accommodationRoutes);
 app.use('/api/proxy', proxyRoutes);
 app.use('/api/events', eventRoutes);
-app.use('/health', healthRoutes);
+app.use('/health', healthRoutes); // Health check endpoint
 
 // Swagger documentation route
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-// Global error handler
+// Global error handler - should be last middleware
 app.use(errorHandler);
 
-// Start microservices
-startMCPServers().catch(error => {
-  logger.error('Failed to start microservices:', error);
-});
+// Start microservices only if not in a test environment perhaps
+if (process.env.NODE_ENV !== 'test') {
+  startMCPServers().catch(error => {
+    logger.error('Failed to start microservices:', error);
+    // Consider exiting if microservices are critical and fail to start
+    // process.exit(1);
+  });
+}
 
 // Start the server
-app.listen(env.PORT, () => {
-  logger.info(`Gateway server running on port ${env.PORT}`);
-  console.log(`Gateway server running on port ${env.PORT}`);
+const server = app.listen(env.PORT, () => {
+  logger.info(`Gateway server running on port ${env.PORT} in ${env.NODE_ENV} mode`);
+  console.log(`Gateway server running on port ${env.PORT} in ${env.NODE_ENV} mode`); // Keep console log for Render health checks potentially
 });
 
 // Handle graceful shutdown
-process.on('SIGTERM', async () => {
+process.on('SIGTERM', () => {
   logger.info('Received SIGTERM signal. Starting graceful shutdown...');
-  process.exit(0);
+  // Add any cleanup logic here (e.g., close DB connections, stop microservices)
+  server.close(() => {
+    logger.info('HTTP server closed.');
+    // Exit process after server closes
+    process.exit(0);
+  });
+  // Force exit after a timeout if graceful shutdown takes too long
+  setTimeout(() => {
+      logger.error('Could not close connections in time, forcefully shutting down');
+      process.exit(1);
+  }, 10000); // 10 seconds timeout
+});
+
+process.on('SIGINT', () => {
+    logger.info('Received SIGINT signal. Shutting down...');
+    // Trigger SIGTERM handler for consistent shutdown logic
+    process.kill(process.pid, 'SIGTERM');
 });

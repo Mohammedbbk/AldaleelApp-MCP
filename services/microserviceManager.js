@@ -12,20 +12,21 @@ const waitForServer = async (name, url, defaultTimeout) => {
   const maxRetries = server.retries || 1;
   const timeout = server.healthCheckTimeout || defaultTimeout;
   const retryInterval = server.retryIntervalMs || 2000; // Use server-specific retry interval or default to 2000ms
-  let retryCount = 0;
-  
-  while (Date.now() - startTime < timeout) {
+
+  for (let retryCount = 0; retryCount < maxRetries; retryCount++) {
+    const elapsed = Date.now() - startTime;
+    if (elapsed > timeout) {
+      break;
+    }
     try {
       logger.info(`Attempting to connect to ${name} at ${url}${healthPath} (Attempt ${retryCount + 1}/${maxRetries})`);
-      const response = await axios.get(`http://127.0.0.1:${server.port}${healthPath}`, { 
-        timeout: Math.min(5000, timeout / maxRetries) // Ensure individual request timeout is reasonable
+      const response = await axios.get(`http://127.0.0.1:${server.port}${healthPath}`, {
+        timeout: Math.min(5000, retryInterval)
       });
       logger.info(`${name} is ready with status: ${JSON.stringify(response.data)}`);
       console.log(`${name} is ready`);
       return;
     } catch (error) {
-      retryCount++;
-      
       if (error.response) {
         logger.warn(`${name} responded with status ${error.response.status}: ${JSON.stringify(error.response.data)}`);
       } else if (error.request) {
@@ -33,20 +34,18 @@ const waitForServer = async (name, url, defaultTimeout) => {
       } else {
         logger.warn(`Error setting up request to ${name}: ${error.message}`);
       }
-      
-      if (retryCount >= maxRetries) {
+
+      if (retryCount + 1 >= maxRetries) {
         logger.warn(`Max retries (${maxRetries}) reached for ${name}`);
         break;
       }
-      
-      // Add a fixed delay between starting servers
-      const serverStartDelayMs = 2000;
-      logger.info(`Waiting ${serverStartDelayMs}ms before starting next server...`);
-      await new Promise(resolve => setTimeout(resolve, serverStartDelayMs));
+
+      logger.info(`Waiting ${retryInterval}ms before retrying ${name}...`);
+      await new Promise(resolve => setTimeout(resolve, retryInterval));
     }
   }
-  
-  const errorMsg = `Timeout waiting for ${name} to be ready at ${url}${healthPath} after ${retryCount} attempts within ${timeout}ms`;
+
+  const errorMsg = `Timeout waiting for ${name} to be ready at ${url}${healthPath} after ${maxRetries} attempts within ${timeout}ms`;
   logger.error(errorMsg);
   throw new Error(errorMsg);
 };
