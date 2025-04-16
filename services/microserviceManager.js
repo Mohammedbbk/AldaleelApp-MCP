@@ -2,8 +2,14 @@ const { exec } = require('child_process');
 const axios = require('axios');
 const { createServerLogger } = require('../server-logger');
 const servers = require('../config/servers.config');
+const env = require('../config/env');
 
 const logger = createServerLogger('MicroserviceManager');
+
+// Helper to check if we're in a deployed environment (like Render)
+const isDeployedEnvironment = () => {
+  return env.NODE_ENV === 'production' && process.env.RENDER === 'true';
+};
 
 const waitForServer = async (name, url, defaultTimeout) => {
   const startTime = Date.now();
@@ -13,14 +19,22 @@ const waitForServer = async (name, url, defaultTimeout) => {
   const timeout = server.healthCheckTimeout || defaultTimeout;
   const retryInterval = server.retryIntervalMs || 2000; // Use server-specific retry interval or default to 2000ms
 
+  // Determine the URL to check
+  // For deployed environments, we might have a remote URL rather than localhost
+  const serverUrl = isDeployedEnvironment() && server.remoteUrl ? 
+    server.remoteUrl : 
+    `http://127.0.0.1:${server.port}`;
+  
+  const healthCheckUrl = `${serverUrl}${healthPath}`;
+
   for (let retryCount = 0; retryCount < maxRetries; retryCount++) {
     const elapsed = Date.now() - startTime;
     if (elapsed > timeout) {
       break;
     }
     try {
-      logger.info(`Attempting to connect to ${name} at ${url}${healthPath} (Attempt ${retryCount + 1}/${maxRetries})`);
-      const response = await axios.get(`http://127.0.0.1:${server.port}${healthPath}`, {
+      logger.info(`Attempting to connect to ${name} at ${healthCheckUrl} (Attempt ${retryCount + 1}/${maxRetries})`);
+      const response = await axios.get(healthCheckUrl, {
         timeout: Math.min(5000, retryInterval)
       });
       logger.info(`${name} is ready with status: ${JSON.stringify(response.data)}`);
@@ -45,14 +59,55 @@ const waitForServer = async (name, url, defaultTimeout) => {
     }
   }
 
-  const errorMsg = `Timeout waiting for ${name} to be ready at ${url}${healthPath} after ${maxRetries} attempts within ${timeout}ms`;
+  const errorMsg = `Timeout waiting for ${name} to be ready at ${healthCheckUrl} after ${maxRetries} attempts within ${timeout}ms`;
+  
+  // In deployed environments, we might want to continue even if a health check fails
+  if (isDeployedEnvironment()) {
+    logger.warn(errorMsg + " (continuing despite error in deployed environment)");
+    return;
+  }
+  
   logger.error(errorMsg);
   throw new Error(errorMsg);
 };
 
 const startMCPServers = async () => {
   try {
+    // In deployed environments (like Render), we may not need to start all microservices
+    // as they may be running as separate services
+    if (isDeployedEnvironment()) {
+      logger.info("Running in deployed environment. External services will not be started locally.");
+      
+      // Check if VISA_SERVICE_URL and CULTURE_SERVICE_URL are set
+      if (env.VISA_SERVICE_URL) {
+        logger.info(`Using external visa service at: ${env.VISA_SERVICE_URL}`);
+      } else {
+        logger.warn("VISA_SERVICE_URL is not set. Visa requirements may not work.");
+      }
+      
+      if (env.CULTURE_SERVICE_URL) {
+        logger.info(`Using external culture service at: ${env.CULTURE_SERVICE_URL}`);
+      } else {
+        logger.warn("CULTURE_SERVICE_URL is not set. Culture insights may not work.");
+      }
+      
+      // Only proceed with health checks for external services if needed
+      // Otherwise, we're done here
+      if (!process.env.CHECK_EXTERNAL_SERVICES) {
+        return;
+      }
+    }
+
+    // For local development or when we do need to start services, proceed as normal
     for (const server of servers) {
+      // Skip starting services that should be external in deployed environments
+      if (isDeployedEnvironment() && 
+        (server.name === 'Visa Requirements Server' && env.VISA_SERVICE_URL ||
+         server.name === 'Culture Insights Server' && env.CULTURE_SERVICE_URL)) {
+        logger.info(`Skipping ${server.name} as it appears to be deployed separately`);
+        continue;
+      }
+      
       logger.info(`Starting ${server.name}...`);
       console.log(`Starting ${server.name}...`);
       
@@ -112,6 +167,14 @@ const startMCPServers = async () => {
       console.log('Waiting for servers to initialize...');
       
       for (const server of servers.filter(s => s.port)) {
+        // Skip health checks for services that are external in deployed environments
+        if (isDeployedEnvironment() && 
+          (server.name === 'Visa Requirements Server' && env.VISA_SERVICE_URL ||
+           server.name === 'Culture Insights Server' && env.CULTURE_SERVICE_URL)) {
+          logger.info(`Skipping health check for ${server.name} as it appears to be deployed separately`);
+          continue;
+        }
+        
         try {
           await waitForServer(server.name, 'http://localhost:' + server.port, 30000);
         } catch (error) {
@@ -146,5 +209,6 @@ const startMCPServers = async () => {
 
 module.exports = {
   startMCPServers,
-  waitForServer
+  waitForServer,
+  isDeployedEnvironment
 };

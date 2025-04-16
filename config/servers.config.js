@@ -56,11 +56,12 @@ const servers = [
     healthCheckPath: '/health',
     healthCheckTimeout: 60000,
   },
-  // --- CORRECTED VISA ENTRY (ONLY ONE) ---
+  // --- CORRECTED VISA ENTRY ---
   {
     name: 'Visa Requirements Server',
     command: `node ${path.join(__dirname, '..', 'visa-requirements-server.js')}`,
     port: env.VISA_REQUIREMENTS_PORT || 8009, // Uses unique port (e.g., 8009)
+    remoteUrl: env.VISA_SERVICE_URL, // For when deployed as a separate service
     env: {
       // Pass necessary environment variables from the main gateway's env
       PORT: env.VISA_REQUIREMENTS_PORT || 8009, // Pass its own port
@@ -74,11 +75,12 @@ const servers = [
     healthCheckTimeout: 30000,
     retries: 3
   },
-  // --- CORRECTED CULTURE ENTRY (ONLY ONE) ---
+  // --- CORRECTED CULTURE ENTRY ---
   {
     name: 'Culture Insights Server',
     command: `node ${path.join(__dirname, '..', 'culture-insights-server.js')}`,
     port: env.CULTURE_INSIGHTS_PORT || 8008, // Uses port 8008
+    remoteUrl: env.CULTURE_SERVICE_URL, // For when deployed as a separate service
     env: {
       PORT: env.CULTURE_INSIGHTS_PORT || 8008, // Pass its own port
       BRAVE_MCP_URL: env.BRAVE_MCP_URL,
@@ -104,7 +106,6 @@ const servers = [
     healthCheckTimeout: 30000,
     retries: 3
   },
-  // --- REMOVED DUPLICATE AI ENTRY ---
 ];
 
 module.exports = servers;
