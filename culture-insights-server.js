@@ -5,6 +5,7 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const { createServerLogger } = require('./server-logger'); // Adjust path if needed
+const { createRequestLogger } = require('./request-logger'); // Adjust path if needed
 
 // --- Configuration ---
 const PORT = process.env.CULTURE_INSIGHTS_PORT || 8008; // Use a new default port
@@ -16,11 +17,12 @@ const REQUEST_TIMEOUT = parseInt(process.env.CULTURE_REQUEST_TIMEOUT) || 30000; 
 // --- Initialization ---
 const app = express();
 
-const logger = createServerLogger('culture-insights'); // Use specific logger name
+const logger = createServerLogger('CultureInsights');
 
 // --- Middleware ---
 app.use(cors()); // Enable CORS for all routes
 app.use(express.json()); // Parse incoming JSON requests
+app.use(createRequestLogger(logger)); // Log incoming requests
 
 // --- Helper: Call LLM Service ---
 async function getCultureInsightsFromLLM(nationality, destination) {
@@ -79,10 +81,8 @@ app.get('/health', (req, res) => {
 });
 
 // Get Culture Insights
-app.post('/culture-insights', async (req, res) => {
-  // --- ADDED START LOG --- 
-  logger.info('[POST /culture-insights] Request received.', { body: req.body });
-  
+app.post('/culture-insights', async (req, res, next) => {
+  logger.info('>>> POST /culture-insights HANDLER REACHED <<<', { body: req.body });
   const { nationality, destination } = req.body;
 
   // Validation

@@ -5,6 +5,7 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const { createServerLogger } = require('./server-logger'); // Adjust path if needed
+const { createRequestLogger } = require('./request-logger'); // Adjust path if needed
 
 // --- Configuration ---
 const PORT = process.env.VISA_REQUIREMENTS_PORT || 8009;
@@ -17,11 +18,12 @@ const REQUEST_TIMEOUT = parseInt(process.env.VISA_REQUEST_TIMEOUT) || 25000; // 
 // --- Initialization ---
 const app = express();
 
-const logger = createServerLogger('visa-requirements'); // Use specific logger name
+const logger = createServerLogger('VisaRequirements');
 
 // --- Middleware ---
 app.use(cors()); // Enable CORS for all routes
 app.use(express.json()); // Parse incoming JSON requests
+app.use(createRequestLogger(logger)); // Log incoming requests
 
 // --- Helper: Call Brave/LLM Service ---
 async function getVisaInfoFromLLM(nationality, destination) {
@@ -75,9 +77,8 @@ app.get('/health', (req, res) => {
 });
 
 // Get Visa Requirements
-app.post('/visa-requirements', async (req, res) => {
-  logger.info('[POST /visa-requirements] Request received.', { body: req.body });
-
+app.post('/visa-requirements', async (req, res, next) => {
+  logger.info('>>> POST /visa-requirements HANDLER REACHED <<<', { body: req.body });
   const { nationality, destination } = req.body;
 
   // Validation
