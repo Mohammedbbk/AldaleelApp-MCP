@@ -8,24 +8,29 @@ const logger = createServerLogger('MicroserviceManager');
 
 // Helper to check if we're in a deployed environment (like Render)
 const isDeployedEnvironment = () => {
-  return env.NODE_ENV === 'production' && process.env.RENDER === 'true';
+  // Explicitly check RENDER env var as well for more certainty
+  return env.NODE_ENV === 'production' || process.env.RENDER === 'true'; 
 };
 
 const waitForServer = async (name, url, defaultTimeout) => {
   const startTime = Date.now();
   const server = servers.find(s => s.name === name);
+  if (!server) {
+    logger.warn(`[waitForServer] Configuration for server '${name}' not found.`);
+    return; // Cannot wait for a server that's not configured
+  }
   const healthPath = server.healthCheckPath || '/health';
   const maxRetries = server.retries || 1;
   const timeout = server.healthCheckTimeout || defaultTimeout;
-  const retryInterval = server.retryIntervalMs || 2000; // Use server-specific retry interval or default to 2000ms
+  const retryInterval = server.retryIntervalMs || 2000; 
 
   // Determine the URL to check
-  // For deployed environments, we might have a remote URL rather than localhost
-  const serverUrl = isDeployedEnvironment() && server.remoteUrl ? 
-    server.remoteUrl : 
-    `http://127.0.0.1:${server.port}`;
+  // For deployed environments where SERVICE_URLs are NOT set, we still check localhost internally
+  const serverUrl = `http://127.0.0.1:${server.port}`;
   
   const healthCheckUrl = `${serverUrl}${healthPath}`;
+
+  logger.info(`[waitForServer] Starting health check for ${name} at ${healthCheckUrl}`);
 
   for (let retryCount = 0; retryCount < maxRetries; retryCount++) {
     const elapsed = Date.now() - startTime;
@@ -33,37 +38,38 @@ const waitForServer = async (name, url, defaultTimeout) => {
       break;
     }
     try {
-      logger.info(`Attempting to connect to ${name} at ${healthCheckUrl} (Attempt ${retryCount + 1}/${maxRetries})`);
+      logger.info(`[waitForServer] Attempting to connect to ${name} at ${healthCheckUrl} (Attempt ${retryCount + 1}/${maxRetries})`);
       const response = await axios.get(healthCheckUrl, {
         timeout: Math.min(5000, retryInterval)
       });
-      logger.info(`${name} is ready with status: ${JSON.stringify(response.data)}`);
-      console.log(`${name} is ready`);
+      logger.info(`[waitForServer] ${name} is ready with status: ${JSON.stringify(response.data)}`);
+      console.log(`[waitForServer] ${name} is ready.`); // Keep console log
       return;
     } catch (error) {
       if (error.response) {
-        logger.warn(`${name} responded with status ${error.response.status}: ${JSON.stringify(error.response.data)}`);
+        logger.warn(`[waitForServer] ${name} responded with status ${error.response.status}: ${JSON.stringify(error.response.data)}`);
       } else if (error.request) {
-        logger.warn(`${name} did not respond to request: ${error.message}`);
+        logger.warn(`[waitForServer] ${name} did not respond to request: ${error.message}`);
       } else {
-        logger.warn(`Error setting up request to ${name}: ${error.message}`);
+        logger.warn(`[waitForServer] Error setting up request to ${name}: ${error.message}`);
       }
 
       if (retryCount + 1 >= maxRetries) {
-        logger.warn(`Max retries (${maxRetries}) reached for ${name}`);
+        logger.warn(`[waitForServer] Max retries (${maxRetries}) reached for ${name}`);
         break;
       }
 
-      logger.info(`Waiting ${retryInterval}ms before retrying ${name}...`);
+      logger.info(`[waitForServer] Waiting ${retryInterval}ms before retrying ${name}...`);
       await new Promise(resolve => setTimeout(resolve, retryInterval));
     }
   }
 
-  const errorMsg = `Timeout waiting for ${name} to be ready at ${healthCheckUrl} after ${maxRetries} attempts within ${timeout}ms`;
+  const errorMsg = `[waitForServer] Timeout waiting for ${name} to be ready at ${healthCheckUrl} after ${maxRetries} attempts within ${timeout}ms`;
   
-  // In deployed environments, we might want to continue even if a health check fails
+  // Log error but don't throw in deployed environment to avoid crashing gateway
+  // if a non-critical internal service fails to start
   if (isDeployedEnvironment()) {
-    logger.warn(errorMsg + " (continuing despite error in deployed environment)");
+    logger.error(errorMsg + " (Continuing despite error in deployed environment)");
     return;
   }
   
@@ -72,138 +78,137 @@ const waitForServer = async (name, url, defaultTimeout) => {
 };
 
 const startMCPServers = async () => {
+  logger.info('[startMCPServers] Starting execution...'); // Log entry
   try {
-    // In deployed environments (like Render), we may not need to start all microservices
-    // as they may be running as separate services
-    if (isDeployedEnvironment()) {
-      logger.info("Running in deployed environment. External services will not be started locally.");
-      
-      // Check if VISA_SERVICE_URL and CULTURE_SERVICE_URL are set
-      if (env.VISA_SERVICE_URL) {
-        logger.info(`Using external visa service at: ${env.VISA_SERVICE_URL}`);
-      } else {
-        logger.warn("VISA_SERVICE_URL is not set. Visa requirements may not work.");
-      }
-      
-      if (env.CULTURE_SERVICE_URL) {
-        logger.info(`Using external culture service at: ${env.CULTURE_SERVICE_URL}`);
-      } else {
-        logger.warn("CULTURE_SERVICE_URL is not set. Culture insights may not work.");
-      }
-      
-      // Only proceed with health checks for external services if needed
-      // Otherwise, we're done here
-      if (!process.env.CHECK_EXTERNAL_SERVICES) {
-        return;
-      }
-    }
+    // In deployed environments (like Render), we only start services if their external URL is NOT provided.
+    // This allows deploying some as separate services and some internally.
+    const deployed = isDeployedEnvironment();
+    logger.info(`[startMCPServers] Running in ${deployed ? 'deployed' : 'local'} environment.`);
 
-    // For local development or when we do need to start services, proceed as normal
     for (const server of servers) {
-      // Skip starting services that should be external in deployed environments
-      if (isDeployedEnvironment() && 
-        (server.name === 'Visa Requirements Server' && env.VISA_SERVICE_URL ||
-         server.name === 'Culture Insights Server' && env.CULTURE_SERVICE_URL)) {
-        logger.info(`Skipping ${server.name} as it appears to be deployed separately`);
-        continue;
+      logger.info(`[startMCPServers] Processing server config: ${server.name}`);
+      
+      // Determine if this service should be started internally
+      let shouldStartInternally = true;
+      if (deployed) {
+        if (server.name === 'Visa Requirements Server' && env.VISA_SERVICE_URL) {
+          logger.info(`[startMCPServers] Skipping internal start for ${server.name} - VISA_SERVICE_URL is set.`);
+          shouldStartInternally = false;
+        }
+        if (server.name === 'Culture Insights Server' && env.CULTURE_SERVICE_URL) {
+          logger.info(`[startMCPServers] Skipping internal start for ${server.name} - CULTURE_SERVICE_URL is set.`);
+          shouldStartInternally = false;
+        }
+        // Add similar checks here if other services might be deployed externally
+      }
+
+      if (!shouldStartInternally) {
+        continue; // Move to the next server config
       }
       
-      logger.info(`Starting ${server.name}...`);
-      console.log(`Starting ${server.name}...`);
+      logger.info(`[startMCPServers] Attempting to start ${server.name} internally...`);
+      console.log(`[startMCPServers] Starting ${server.name}...`); // Keep console log
       
       const options = server.env ? { env: { ...process.env, ...server.env } } : {};
-      
-      if (server.name === 'TripAdvisor MCP Server') {
-        logger.info('Note: TripAdvisor MCP Server requires Python 3.10+ to run');
-      }
-      
-      if (server.name === 'Airbnb MCP Server') {
-        logger.info('Starting Airbnb MCP Server with options:', JSON.stringify(options));
-        try {
-          require.resolve('@openbnb/mcp-server-airbnb');
-          logger.info('Airbnb MCP Server package is installed');
-        } catch (e) {
-          logger.error('Airbnb MCP Server package is not installed. Error:', e.message);
-        }
-      }
-      
-      const childProcess = exec(server.command, options, (error, stdout, stderr) => {
-        if (error) {
-          logger.error(`${server.name} Error: ${error.message}`);
-          console.error(`${server.name} Error: ${error.message}`);
-          return;
-        }
-        if (stderr) {
-          logger.warn(`${server.name} Warning: ${stderr}`);
-          console.warn(`${server.name} Warning: ${stderr}`);
-        }
-        logger.info(`${server.name} Output: ${stdout}`);
-        console.log(`${server.name} Output: ${stdout}`);
-      });
-      
-      if (server.name === 'Airbnb MCP Server') {
-        if (childProcess.stdout) {
-          childProcess.stdout.on('data', (data) => {
-            logger.info(`${server.name} stdout: ${data.toString().trim()}`);
-            console.log(`${server.name} stdout: ${data.toString().trim()}`);
-          });
-        }
-        
-        if (childProcess.stderr) {
-          childProcess.stderr.on('data', (data) => {
-            logger.warn(`${server.name} stderr: ${data.toString().trim()}`);
-            console.warn(`${server.name} stderr: ${data.toString().trim()}`);
-          });
-        }
-      }
-      
-      // Add a fixed delay between starting servers
-      const serverStartDelayMs = 2000;
-      logger.info(`Waiting ${serverStartDelayMs}ms before starting next server...`);
-      await new Promise(resolve => setTimeout(resolve, serverStartDelayMs));
-    }
+      logger.info(`[startMCPServers] Options for ${server.name}: ${JSON.stringify(options)}`); // Log options
+      logger.info(`[startMCPServers] Command for ${server.name}: ${server.command}`); // Log command
 
-    if (process.env.WAIT_FOR_SERVERS === 'true') {
-      console.log('Waiting for servers to initialize...');
-      
-      for (const server of servers.filter(s => s.port)) {
-        // Skip health checks for services that are external in deployed environments
-        if (isDeployedEnvironment() && 
-          (server.name === 'Visa Requirements Server' && env.VISA_SERVICE_URL ||
-           server.name === 'Culture Insights Server' && env.CULTURE_SERVICE_URL)) {
-          logger.info(`Skipping health check for ${server.name} as it appears to be deployed separately`);
-          continue;
-        }
-        
-        try {
-          await waitForServer(server.name, 'http://localhost:' + server.port, 30000);
-        } catch (error) {
-          logger.error(`Failed to start ${server.name}: ${error.message}`);
-          
-          if (server.name === 'Airbnb MCP Server') {
-            logger.info('Attempting to diagnose Airbnb MCP Server issue...');
-            
-            exec(`lsof -i :${server.port}`, (error, stdout) => {
-              if (error) {
-                logger.info(`Port ${server.port} does not appear to be in use by another process`);
-              } else {
-                logger.error(`Port ${server.port} may be in use by another process:\n${stdout}`);
-              }
-            });
-            
-            try {
-              await axios.get(`http://localhost:${server.port}`, { timeout: 2000 });
-              logger.info(`Airbnb server is responding on port ${server.port} but health check failed`);
-            } catch (e) {
-              logger.error(`Airbnb server is not responding on port ${server.port}: ${e.message}`);
-            }
+      // Check if the command file exists (for Node scripts)
+      if (server.command.startsWith('node')) {
+        const scriptPathMatch = server.command.match(/node\s+([^\s]+)/);
+        if (scriptPathMatch && scriptPathMatch[1]) {
+          const scriptPath = scriptPathMatch[1];
+          try {
+            require.resolve(scriptPath); // Check if Node can find the script
+            logger.info(`[startMCPServers] Script found for ${server.name}: ${scriptPath}`);
+          } catch (resolveError) {
+            logger.error(`[startMCPServers] CRITICAL: Script not found for ${server.name} at ${scriptPath}. Cannot start. Error: ${resolveError.message}`);
+            continue; // Skip this server if script is missing
           }
         }
       }
+      
+      // Execute the command
+      const childProcess = exec(server.command, options, (error, stdout, stderr) => {
+        // This callback runs AFTER the process exits
+        if (error) {
+          logger.error(`[startMCPServers] ${server.name} exited with error: ${error.message}`);
+          console.error(`[startMCPServers] ${server.name} Error: ${error.message}`);
+          return;
+        }
+        if (stderr) {
+          // Log stderr as warning, it might contain important info even on success
+          logger.warn(`[startMCPServers] ${server.name} stderr output: ${stderr}`);
+          console.warn(`[startMCPServers] ${server.name} stderr: ${stderr}`);
+        }
+        logger.info(`[startMCPServers] ${server.name} stdout output (on exit): ${stdout}`);
+        console.log(`[startMCPServers] ${server.name} stdout (on exit): ${stdout}`);
+      });
+
+      // Log immediately that the process was spawned
+      logger.info(`[startMCPServers] Spawned process for ${server.name} with PID: ${childProcess.pid}`);
+
+      // Optional: Log stdout/stderr streams in real-time (can be very verbose)
+      // childProcess.stdout.on('data', (data) => logger.info(`[${server.name} STDOUT]: ${data.toString().trim()}`));
+      // childProcess.stderr.on('data', (data) => logger.warn(`[${server.name} STDERR]: ${data.toString().trim()}`));
+      
+      // Add a fixed delay between starting servers
+      const serverStartDelayMs = 2000;
+      logger.info(`[startMCPServers] Waiting ${serverStartDelayMs}ms before starting next server...`);
+      await new Promise(resolve => setTimeout(resolve, serverStartDelayMs));
     }
+
+    // Wait for servers only if WAIT_FOR_SERVERS is true
+    if (env.WAIT_FOR_SERVERS) {
+      logger.info('[startMCPServers] WAIT_FOR_SERVERS is true. Starting health checks...');
+      console.log('[startMCPServers] Waiting for servers to initialize...');
+      
+      const healthCheckPromises = servers
+        .filter(server => { 
+          // Only check servers that are supposed to be internal
+          let shouldCheck = true;
+          if (deployed) {
+            if (server.name === 'Visa Requirements Server' && env.VISA_SERVICE_URL) shouldCheck = false;
+            if (server.name === 'Culture Insights Server' && env.CULTURE_SERVICE_URL) shouldCheck = false;
+            // Add similar checks for other potentially external services
+          }
+          return shouldCheck && server.port && server.healthCheckPath; // Ensure port and health check path are defined
+        })
+        .map(server => { 
+            logger.info(`[startMCPServers] Queuing health check for internally started server: ${server.name}`);
+            // Use the correct internal URL for health check
+            return waitForServer(server.name, `http://localhost:${server.port}`, server.healthCheckTimeout || 30000);
+        });
+
+      await Promise.allSettled(healthCheckPromises).then(results => {
+          results.forEach((result, index) => {
+              // Find corresponding server config to log name
+              const checkedServer = servers.filter(s => { /* filter logic matching above */ 
+                 let shouldCheck = true;
+                 if (deployed) {
+                    if (s.name === 'Visa Requirements Server' && env.VISA_SERVICE_URL) shouldCheck = false;
+                    if (s.name === 'Culture Insights Server' && env.CULTURE_SERVICE_URL) shouldCheck = false;
+                 }
+                 return shouldCheck && s.port && s.healthCheckPath;
+              })[index];
+              
+              if (result.status === 'rejected') {
+                  logger.error(`[startMCPServers] Health check failed for ${checkedServer?.name || 'Unknown Server'}: ${result.reason?.message || result.reason}`);
+              } else {
+                  logger.info(`[startMCPServers] Health check successful for ${checkedServer?.name || 'Unknown Server'}.`);
+              }
+          });
+      });
+      logger.info('[startMCPServers] All health checks completed.');
+    } else {
+      logger.info('[startMCPServers] WAIT_FOR_SERVERS is false. Skipping health checks.');
+    }
+    logger.info('[startMCPServers] Finished execution.');
+
   } catch (error) {
-    logger.error('Error starting MCP servers:', error);
-    console.error('Error starting MCP servers:', error);
+    logger.error('[startMCPServers] Uncaught error during execution:', error);
+    console.error('[startMCPServers] Error starting MCP servers:', error);
+    // Optionally re-throw or handle critical failure
   }
 };
 
