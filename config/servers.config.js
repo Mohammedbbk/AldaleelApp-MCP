@@ -45,13 +45,13 @@ const servers = [
   },
   {
     name: 'Airbnb MCP Server',
-    command: `npx -y @openbnb/mcp-server-airbnb --port ${env.AIRBNB_PORT || 8007} --host 127.0.0.1`,
+    command: `npx -y @openbnb/mcp-server-airbnb --port ${env.AIRBNB_PORT || 8007} --host 0.0.0.0`,
     port: env.AIRBNB_PORT || 8007, // Uses port 8007
     env: {
       IGNORE_ROBOTS_TXT: process.env.IGNORE_ROBOTS_TXT || 'false',
       PORT: env.AIRBNB_PORT || 8007,
       DEBUG: 'airbnb:*',
-      HOST: '127.0.0.1'
+      HOST: '0.0.0.0'
     },
     healthCheckPath: '/health',
     healthCheckTimeout: 60000,
@@ -72,7 +72,7 @@ const servers = [
       // Add BRAVE_PORT or BRAVE_API_KEY if visa-requirements-server needs them
     },
     healthCheckPath: '/health', // Assuming it has one
-    healthCheckTimeout: 30000,
+    healthCheckTimeout: 90000, // Increased timeout significantly
     retries: 3
   },
   // --- CORRECTED CULTURE ENTRY ---
@@ -90,7 +90,7 @@ const servers = [
        // Add BRAVE_PORT or BRAVE_API_KEY if culture-insights-server needs them
     },
     healthCheckPath: '/health', // Assuming it has one
-    healthCheckTimeout: 35000,
+    healthCheckTimeout: 90000, // Increased timeout significantly
     retries: 5
   },
   // Add Brave/LLM Service configuration
