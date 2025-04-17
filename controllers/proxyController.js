@@ -21,6 +21,7 @@
       ? `${VISA_SERVICE_URL}/visa-requirements` 
       : `http://localhost:${env.VISA_REQUIREMENTS_PORT || 8009}/visa-requirements`;
     
+    logger.info(`[DEBUG] Attempting to proxy visa request to target URL: ${targetUrl}`);
     logger.info(`Proxying visa request to: ${targetUrl}`, requestData);
     try {
       const response = await axios.post(targetUrl, requestData, { timeout: env.VISA_REQUEST_TIMEOUT || 30000 });
@@ -60,6 +61,7 @@
       ? `${CULTURE_SERVICE_URL}/culture-insights` 
       : `http://localhost:${env.CULTURE_INSIGHTS_PORT || 8008}/culture-insights`;
     
+    logger.info(`[DEBUG] Attempting to proxy culture insights request to target URL: ${targetUrl}`);
     logger.info(`Proxying culture request to: ${targetUrl}`, requestData);
     try {
       const response = await axios.post(targetUrl, requestData, { timeout: env.CULTURE_REQUEST_TIMEOUT || 30000 });
