@@ -30,23 +30,23 @@ async function getVisaInfoFromLLM(nationality, destination) {
   const targetUrl = `${BRAVE_MCP_URL}${BRAVE_API_ENDPOINT}`;
   logger.info(`Querying LLM at ${targetUrl} for visa: ${nationality} -> ${destination}`);
 
+  const payload = {
+    messages: [
+      {
+        role: 'user',
+        content: `What are the visa requirements for a ${nationality} citizen traveling to ${destination}? Please provide detailed information about visa types, required documents, application process, fees, validity, length of stay, and any specific warnings or important notes.`
+      }
+    ]
+  };
+
   try {
-    logger.info(`[getVisaInfoFromLLM] Attempting POST to ${targetUrl}`);
+    logger.info(`[getVisaInfoFromLLM] >>> Preparing to POST to ${targetUrl}`, { payload: JSON.stringify(payload) }); // Log payload
     const response = await axios.post(
       targetUrl,
-      {
-        // Ensure this payload matches what the Brave/LLM endpoint expects
-        messages: [
-          {
-            role: 'user',
-            content: `What are the visa requirements for a ${nationality} citizen traveling to ${destination}? Please provide detailed information about visa types, required documents, application process, fees, validity, length of stay, and any specific warnings or important notes.`
-          }
-        ],
-        // Add other parameters like 'stream: false' if needed by the endpoint
-        // stream: false
-      },
-      { timeout: REQUEST_TIMEOUT } // Use configurable timeout
+      payload,
+      { timeout: REQUEST_TIMEOUT }
     );
+    logger.info(`[getVisaInfoFromLLM] <<< Successfully received response from ${targetUrl}`, { status: response.status }); // Log success
 
     // **Adapt this based on the ACTUAL response structure of your Brave/LLM endpoint**
     // Trying common structures:
@@ -65,8 +65,16 @@ async function getVisaInfoFromLLM(nationality, destination) {
   } catch (error) {
     const status = error.response?.status;
     const errorData = error.response?.data;
-    logger.error(`[getVisaInfoFromLLM] Error calling LLM (${targetUrl}): ${error.message}`, { status, errorData });
-    throw new Error(`LLM service request failed with status ${status || 'unknown'}`); // Re-throw cleaner error
+    const errorCode = error.code; // Get error code (e.g., ECONNREFUSED, ETIMEDOUT)
+    logger.error(`[getVisaInfoFromLLM] !!! Error calling LLM (${targetUrl}): ${error.message}`, { status, errorCode, errorData: JSON.stringify(errorData) }); // Log error details
+    // Throw a more specific error based on the code
+    if (errorCode === 'ECONNREFUSED') {
+       throw new Error(`LLM service connection refused at ${targetUrl}`);
+    } else if (errorCode === 'ETIMEDOUT') {
+       throw new Error(`LLM service request timed out at ${targetUrl}`);
+    } else {
+       throw new Error(`LLM service request failed with status ${status || 'unknown'} (Code: ${errorCode || 'N/A'})`);
+    }
   }
 }
 
@@ -92,9 +100,9 @@ app.post('/visa-requirements', async (req, res, next) => {
   }
 
   try {
-    logger.info(`[POST /visa-requirements] Calling getVisaInfoFromLLM for ${nationality} -> ${destination}`);
+    logger.info(`[POST /visa-requirements] ---> Calling getVisaInfoFromLLM for ${nationality} -> ${destination}`);
     const visaContent = await getVisaInfoFromLLM(nationality, destination);
-    logger.info(`[POST /visa-requirements] Received content from LLM. Length: ${visaContent?.length || 0}`);
+    logger.info(`[POST /visa-requirements] <--- Received content from LLM. Length: ${visaContent?.length || 0}`);
 
     // --- Parse the LLM response into structured fields ---
     function parseVisaRequirements(rawContent) {
@@ -121,8 +129,9 @@ app.post('/visa-requirements', async (req, res, next) => {
       visaRequirements: structured
     });
   } catch (error) {
-    logger.error(`[POST /visa-requirements] Error caught in route handler: ${error.message}`);
-    // Error already logged in helper function
+    // Log the specific error received from the helper
+    logger.error(`[POST /visa-requirements] !!! Error caught in route handler: ${error.message}`);
+    // Error should already be logged in detail by the helper function
     res.status(502).json({ // 502 Bad Gateway suggests upstream failure
       status: 'error',
       message: 'Failed to retrieve visa requirements from the information service.',

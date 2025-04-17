@@ -19,7 +19,7 @@
     // Use the environment variable for the full URL if available, otherwise fallback to localhost
     const targetUrl = VISA_SERVICE_URL 
       ? `${VISA_SERVICE_URL}/visa-requirements` 
-      : `http://localhost:${env.VISA_REQUIREMENTS_PORT || 8009}/visa-requirements`;
+      : `http://127.0.0.1:${env.VISA_REQUIREMENTS_PORT || 8009}/visa-requirements`;
     
     logger.info(`[DEBUG] Attempting to proxy visa request to target URL: ${targetUrl}`);
     logger.info(`Proxying visa request to: ${targetUrl}`, requestData);
@@ -59,7 +59,7 @@
     // Use the environment variable for the full URL if available, otherwise fallback to localhost
     const targetUrl = CULTURE_SERVICE_URL 
       ? `${CULTURE_SERVICE_URL}/culture-insights` 
-      : `http://localhost:${env.CULTURE_INSIGHTS_PORT || 8008}/culture-insights`;
+      : `http://127.0.0.1:${env.CULTURE_INSIGHTS_PORT || 8008}/culture-insights`;
     
     logger.info(`[DEBUG] Attempting to proxy culture insights request to target URL: ${targetUrl}`);
     logger.info(`Proxying culture request to: ${targetUrl}`, requestData);
@@ -96,7 +96,7 @@
 
   async function testAirbnbConnection() {
     // Assuming Airbnb service runs locally or needs its own URL if deployed separately
-    const targetUrl = `http://localhost:${env.AIRBNB_PORT || 8007}/health`; 
+    const targetUrl = `http://127.0.0.1:${env.AIRBNB_PORT || 8007}/health`; 
     logger.info(`Testing Airbnb connection to: ${targetUrl}`);
     try {
       const response = await axios.get(targetUrl);

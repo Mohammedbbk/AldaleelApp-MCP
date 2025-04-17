@@ -29,30 +29,31 @@ async function getCultureInsightsFromLLM(nationality, destination) {
   const targetUrl = `${LLM_SERVICE_URL}${LLM_API_ENDPOINT}`;
   logger.info(`Querying LLM at ${targetUrl} for culture insights: ${nationality} -> ${destination}`);
 
-  try {
-    // --- ADDED DEBUG LOG --- 
-    logger.info(`[getCultureInsightsFromLLM] Attempting POST to ${targetUrl}`);
-    const response = await axios.post(
-      targetUrl,
+  const payload = {
+    messages: [
       {
-        // Ensure this payload matches what the LLM endpoint expects
-        messages: [
-          {
-            role: 'user',
-            content: `Provide cultural insights for a ${nationality} citizen traveling to ${destination}. Focus on:
+        role: 'user',
+        content: `Provide cultural insights for a ${nationality} citizen traveling to ${destination}. Focus on:
 1.  **Greetings & Etiquette:** Common greetings, addressing people (formal/informal), gestures to use/avoid.
 2.  **Social Norms:** Tipping customs, gift-giving practices, punctuality expectations, public behavior.
 3.  **Communication:** Direct vs. indirect communication styles, sensitive topics to avoid.
 4.  **Food & Dining:** Meal etiquette, common local dishes, dietary considerations (if any specific to the destination).
 5.  **Key Phrases:** A few essential phrases in the local language (e.g., hello, thank you, excuse me).
 6.  **Important Note:** Any critical cultural aspect a visitor should be aware of to avoid misunderstandings or offense.`
-          }
-        ],
-        // Add other parameters like 'stream: false' if needed by the endpoint
-        // stream: false
-      },
-      { timeout: REQUEST_TIMEOUT } // Use configurable timeout
+      }
+    ]
+  };
+
+  try {
+    // --- ADDED DEBUG LOG (Modified) --- 
+    logger.info(`[getCultureInsightsFromLLM] >>> Preparing to POST to ${targetUrl}`, { payload: JSON.stringify(payload) });
+    const response = await axios.post(
+      targetUrl,
+      payload,
+      { timeout: REQUEST_TIMEOUT }
     );
+    // --- ADDED SUCCESS LOG ---
+    logger.info(`[getCultureInsightsFromLLM] <<< Successfully received response from ${targetUrl}`, { status: response.status });
 
     // Adapt this based on the ACTUAL response structure of your LLM endpoint
     const content = response.data?.choices?.[0]?.message?.content // OpenAI-like structure
@@ -70,9 +71,17 @@ async function getCultureInsightsFromLLM(nationality, destination) {
   } catch (error) {
     const status = error.response?.status;
     const errorData = error.response?.data;
-    // --- ADDED DEBUG LOG ---
-    logger.error(`[getCultureInsightsFromLLM] Error calling LLM (${targetUrl}): ${error.message}`, { status, errorData });
-    throw new Error(`LLM service request failed with status ${status || 'unknown'}`); // Re-throw cleaner error
+    const errorCode = error.code; // Get error code
+    // --- ADDED DEBUG LOG (Modified) ---
+    logger.error(`[getCultureInsightsFromLLM] !!! Error calling LLM (${targetUrl}): ${error.message}`, { status, errorCode, errorData: JSON.stringify(errorData) });
+    // Throw a more specific error based on the code
+    if (errorCode === 'ECONNREFUSED') {
+       throw new Error(`LLM service connection refused at ${targetUrl}`);
+    } else if (errorCode === 'ETIMEDOUT') {
+       throw new Error(`LLM service request timed out at ${targetUrl}`);
+    } else {
+       throw new Error(`LLM service request failed with status ${status || 'unknown'} (Code: ${errorCode || 'N/A'})`);
+    }
   }
 }
 
@@ -99,10 +108,10 @@ app.post('/culture-insights', async (req, res, next) => {
 
   try {
     // --- ADDED BEFORE LOG --- 
-    logger.info(`[POST /culture-insights] Calling getCultureInsightsFromLLM for ${nationality} -> ${destination}`);
+    logger.info(`[POST /culture-insights] ---> Calling getCultureInsightsFromLLM for ${nationality} -> ${destination}`);
     const cultureContent = await getCultureInsightsFromLLM(nationality, destination);
     // --- ADDED AFTER LOG ---
-    logger.info(`[POST /culture-insights] Received content from LLM. Length: ${cultureContent?.length || 0}`);
+    logger.info(`[POST /culture-insights] <--- Received content from LLM. Length: ${cultureContent?.length || 0}`);
 
     function parseCultureInsights(rawContent) {
       // Similar parsing logic as visa (adapt fields as needed)
@@ -130,8 +139,8 @@ app.post('/culture-insights', async (req, res, next) => {
     });
   } catch (error) {
     // --- ADDED ERROR LOG ---
-    logger.error(`[POST /culture-insights] Error caught in route handler: ${error.message}`);
-    // Error already logged in helper function
+    logger.error(`[POST /culture-insights] !!! Error caught in route handler: ${error.message}`);
+    // Error should already be logged in detail by the helper function
     res.status(502).json({ // 502 Bad Gateway suggests upstream failure
       status: 'error',
       message: 'Failed to retrieve culture insights from the information service.',
