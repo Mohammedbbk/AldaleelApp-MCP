@@ -80,6 +80,9 @@ app.get('/health', (req, res) => {
 
 // Get Culture Insights
 app.post('/culture-insights', async (req, res) => {
+  // --- ADDED START LOG --- 
+  logger.info('[POST /culture-insights] Request received.', { body: req.body });
+  
   const { nationality, destination } = req.body;
 
   // Validation
@@ -92,20 +95,43 @@ app.post('/culture-insights', async (req, res) => {
   }
 
   try {
+    // --- ADDED BEFORE LOG --- 
+    logger.info(`[POST /culture-insights] Calling getCultureInsightsFromLLM for ${nationality} -> ${destination}`);
     const cultureContent = await getCultureInsightsFromLLM(nationality, destination);
+    // --- ADDED AFTER LOG ---
+    logger.info(`[POST /culture-insights] Received content from LLM. Length: ${cultureContent?.length || 0}`);
 
+    function parseCultureInsights(rawContent) {
+      // Similar parsing logic as visa (adapt fields as needed)
+      const etiquette = /Etiquette:\s*(.+)/i.exec(rawContent)?.[1] || '';
+      const dressCode = /Dress Code:\s*(.+)/i.exec(rawContent)?.[1] || '';
+      const communication = /Communication:\s*(.+)/i.exec(rawContent)?.[1] || '';
+      const customs = /Customs & Traditions:\s*([\s\S]*?)(?:\n[A-Z][a-z]+:|$)/i.exec(rawContent);
+      const keyCustoms = customs
+          ? customs[1].split('\n').map(line => line.replace(/^- /, '').trim()).filter(Boolean)
+          : [];
+      const notes = /Notes:\s*([\s\S]*)/i.exec(rawContent)?.[1] || '';
+
+      if (etiquette || dressCode || communication || keyCustoms.length > 0 || notes) {
+          return { etiquette, dressCode, communication, keyCustoms, notes };
+      }
+      return { content: rawContent };
+    }
+
+    const structured = parseCultureInsights(cultureContent);
+    // --- ADDED RESPONSE LOG ---
+    logger.info('[POST /culture-insights] Sending success response.');
     res.json({
       status: 'success',
-      cultureInsights: {
-        content: cultureContent,
-        source: "LLM Information Service" // Generic source name
-      }
+      cultureInsights: structured
     });
   } catch (error) {
+    // --- ADDED ERROR LOG ---
+    logger.error(`[POST /culture-insights] Error caught in route handler: ${error.message}`);
     // Error already logged in helper function
     res.status(502).json({ // 502 Bad Gateway suggests upstream failure
       status: 'error',
-      message: 'Failed to retrieve cultural insights from the information service.',
+      message: 'Failed to retrieve culture insights from the information service.',
       details: error.message // Pass cleaner error message
     });
   }

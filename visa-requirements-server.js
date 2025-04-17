@@ -76,6 +76,8 @@ app.get('/health', (req, res) => {
 
 // Get Visa Requirements
 app.post('/visa-requirements', async (req, res) => {
+  logger.info('[POST /visa-requirements] Request received.', { body: req.body });
+
   const { nationality, destination } = req.body;
 
   // Validation
@@ -88,7 +90,9 @@ app.post('/visa-requirements', async (req, res) => {
   }
 
   try {
+    logger.info(`[POST /visa-requirements] Calling getVisaInfoFromLLM for ${nationality} -> ${destination}`);
     const visaContent = await getVisaInfoFromLLM(nationality, destination);
+    logger.info(`[POST /visa-requirements] Received content from LLM. Length: ${visaContent?.length || 0}`);
 
     // --- Parse the LLM response into structured fields ---
     function parseVisaRequirements(rawContent) {
@@ -109,11 +113,13 @@ app.post('/visa-requirements', async (req, res) => {
     }
 
     const structured = parseVisaRequirements(visaContent);
+    logger.info('[POST /visa-requirements] Sending success response.');
     res.json({
       status: 'success',
       visaRequirements: structured
     });
   } catch (error) {
+    logger.error(`[POST /visa-requirements] Error caught in route handler: ${error.message}`);
     // Error already logged in helper function
     res.status(502).json({ // 502 Bad Gateway suggests upstream failure
       status: 'error',
