@@ -96,9 +96,10 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 // Start the server
-const server = app.listen(env.PORT, () => {
-  logger.info(`Gateway server running on port ${env.PORT} in ${env.NODE_ENV} mode`);
-  console.log(`Gateway server running on port ${env.PORT} in ${env.NODE_ENV} mode`); // Keep console log for Render health checks potentially
+// Explicitly listen on 0.0.0.0 to ensure accessibility within Docker
+const server = app.listen(env.PORT, '0.0.0.0', () => {
+  logger.info(`Gateway server running on host 0.0.0.0, port ${env.PORT} in ${env.NODE_ENV} mode`);
+  console.log(`Gateway server running on host 0.0.0.0, port ${env.PORT} in ${env.NODE_ENV} mode`); 
 });
 
 // Handle graceful shutdown

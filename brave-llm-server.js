@@ -3,10 +3,11 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const { createServerLogger } = require('./server-logger');
+const env = require('./config/env');
 
 // Initialize express app
 const app = express();
-const logger = createServerLogger('brave-llm');
+const logger = createServerLogger('BraveLLM');
 
 // Middleware
 app.use(cors());
@@ -19,6 +20,7 @@ app.get('/health', (req, res) => {
 
 // API chat endpoint that Visa and Culture services call
 app.post('/api/chat', async (req, res) => {
+  logger.info(`>>> POST /api/chat HANDLER REACHED <<<`, { body: req.body });
   try {
     const { messages } = req.body;
     
@@ -62,9 +64,9 @@ app.post('/api/chat', async (req, res) => {
 });
 
 // Start server
-const PORT = process.env.PORT || process.env.BRAVE_PORT || 3002;
+const PORT = process.env.BRAVE_LLM_PORT || 8010;
 app.listen(PORT, '0.0.0.0', () => {
-  logger.info(`Brave LLM Service running on port ${PORT}`);
+  logger.info(`Brave LLM Service started successfully on port ${PORT}`);
   console.log(`Brave LLM Service running on port ${PORT}`);
 });
 

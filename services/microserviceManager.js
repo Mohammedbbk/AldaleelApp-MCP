@@ -148,9 +148,9 @@ const startMCPServers = async () => {
       // Log immediately that the process was spawned
       logger.info(`[startMCPServers] Spawned process for ${server.name} with PID: ${childProcess.pid}`);
 
-      // Optional: Log stdout/stderr streams in real-time (can be very verbose)
-      // childProcess.stdout.on('data', (data) => logger.info(`[${server.name} STDOUT]: ${data.toString().trim()}`));
-      // childProcess.stderr.on('data', (data) => logger.warn(`[${server.name} STDERR]: ${data.toString().trim()}`));
+      // Log stdout/stderr streams in real-time
+      childProcess.stdout.on('data', (data) => logger.info(`[${server.name} STDOUT]: ${data.toString().trim()}`));
+      childProcess.stderr.on('data', (data) => logger.warn(`[${server.name} STDERR]: ${data.toString().trim()}`));
       
       // Add a fixed delay between starting servers
       const serverStartDelayMs = 2000;

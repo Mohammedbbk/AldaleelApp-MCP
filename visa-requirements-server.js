@@ -31,6 +31,7 @@ async function getVisaInfoFromLLM(nationality, destination) {
   logger.info(`Querying LLM at ${targetUrl} for visa: ${nationality} -> ${destination}`);
 
   try {
+    logger.info(`[getVisaInfoFromLLM] Attempting POST to ${targetUrl}`);
     const response = await axios.post(
       targetUrl,
       {
@@ -64,7 +65,7 @@ async function getVisaInfoFromLLM(nationality, destination) {
   } catch (error) {
     const status = error.response?.status;
     const errorData = error.response?.data;
-    logger.error(`Error calling LLM (${targetUrl}): ${error.message}`, { status, errorData });
+    logger.error(`[getVisaInfoFromLLM] Error calling LLM (${targetUrl}): ${error.message}`, { status, errorData });
     throw new Error(`LLM service request failed with status ${status || 'unknown'}`); // Re-throw cleaner error
   }
 }

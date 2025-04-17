@@ -30,6 +30,8 @@ async function getCultureInsightsFromLLM(nationality, destination) {
   logger.info(`Querying LLM at ${targetUrl} for culture insights: ${nationality} -> ${destination}`);
 
   try {
+    // --- ADDED DEBUG LOG --- 
+    logger.info(`[getCultureInsightsFromLLM] Attempting POST to ${targetUrl}`);
     const response = await axios.post(
       targetUrl,
       {
@@ -68,7 +70,8 @@ async function getCultureInsightsFromLLM(nationality, destination) {
   } catch (error) {
     const status = error.response?.status;
     const errorData = error.response?.data;
-    logger.error(`Error calling LLM (${targetUrl}): ${error.message}`, { status, errorData });
+    // --- ADDED DEBUG LOG ---
+    logger.error(`[getCultureInsightsFromLLM] Error calling LLM (${targetUrl}): ${error.message}`, { status, errorData });
     throw new Error(`LLM service request failed with status ${status || 'unknown'}`); // Re-throw cleaner error
   }
 }

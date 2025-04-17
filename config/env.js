@@ -49,6 +49,9 @@ const validateEnv = () => {
 
 validateEnv();
 
+// Assign the new port, defaulting to 8010
+const braveLLMPort = process.env.BRAVE_LLM_PORT || 8010;
+
 module.exports = {
   PORT: process.env.PORT || 8000,
 
@@ -57,7 +60,7 @@ module.exports = {
   SUPABASE_URL: process.env.SUPABASE_URL,
   SUPABASE_KEY: process.env.SUPABASE_KEY,
   MAPBOX_API_KEY: process.env.MAPBOX_API_KEY,
-  TRAVEL_PLANNER_PORT: process.env.TRAVEL_PLANNER_PORT || 8002,
+  TRAVEL_PLANNER_PORT: process.env.TRAVEL_PLANNER_PORT || 8004, 
   TICKETMASTER_API_KEY: process.env.TICKETMASTER_API_KEY,
   LIVE_EVENTS_PORT: process.env.LIVE_EVENTS_PORT || 8005,
   TRIPADVISOR_API_KEY: process.env.TRIPADVISOR_API_KEY,
@@ -65,9 +68,15 @@ module.exports = {
   AIRBNB_PORT: process.env.AIRBNB_PORT || 8007,
   VISA_REQUIREMENTS_PORT: process.env.VISA_REQUIREMENTS_PORT || 8009, // Default local port
   CULTURE_INSIGHTS_PORT: process.env.CULTURE_INSIGHTS_PORT || 8008, // Default local port
-  BRAVE_MCP_URL: process.env.BRAVE_MCP_URL,
-  BRAVE_API_ENDPOINT: process.env.BRAVE_API_ENDPOINT,
-  BRAVE_PORT: process.env.BRAVE_PORT || 3002,
+  
+  // Brave LLM Configuration
+  BRAVE_LLM_PORT: braveLLMPort, // Export the new port
+  // Construct the URL using the determined port. Use 127.0.0.1 for clarity in local/container comms.
+  BRAVE_MCP_URL: process.env.BRAVE_MCP_URL || `http://127.0.0.1:${braveLLMPort}`,
+  BRAVE_API_ENDPOINT: process.env.BRAVE_API_ENDPOINT || '/api/chat',
+  // BRAVE_PORT is likely deprecated now - keeping it commented out
+  // BRAVE_PORT: process.env.BRAVE_PORT || 3002, 
+  
   VISA_REQUEST_TIMEOUT: parseInt(process.env.VISA_REQUEST_TIMEOUT) || 30000,
   CULTURE_REQUEST_TIMEOUT: parseInt(process.env.CULTURE_REQUEST_TIMEOUT) || 30000,
 

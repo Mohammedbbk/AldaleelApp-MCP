@@ -97,10 +97,10 @@ const servers = [
   {
     name: 'Brave LLM Service',
     command: `node ${path.join(__dirname, '..', 'brave-llm-server.js')}`,
-    port: env.BRAVE_PORT || 3002, // Uses port 3002
+    port: env.BRAVE_LLM_PORT,
     env: {
-      PORT: env.BRAVE_PORT || 3002,
-      // Add any other environment variables needed by the Brave LLM service
+      BRAVE_LLM_PORT: env.BRAVE_LLM_PORT,
+      PORT: env.BRAVE_LLM_PORT,
     },
     healthCheckPath: '/health',
     healthCheckTimeout: 30000,
