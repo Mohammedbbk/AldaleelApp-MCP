@@ -5,7 +5,7 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const { createServerLogger } = require('./server-logger'); // Adjust path if needed
-const { createRequestLogger } = require('./request-logger'); // Adjust path if needed
+// const { createRequestLogger } = require('./request-logger'); // Removed - Caused crash
 
 // --- Configuration ---
 const PORT = process.env.VISA_REQUIREMENTS_PORT || 8009;
@@ -23,7 +23,7 @@ const logger = createServerLogger('VisaRequirements');
 // --- Middleware ---
 app.use(cors()); // Enable CORS for all routes
 app.use(express.json()); // Parse incoming JSON requests
-app.use(createRequestLogger(logger)); // Log incoming requests
+// app.use(createRequestLogger(logger)); // Removed - Caused crash
 
 // --- Helper: Call Brave/LLM Service ---
 async function getVisaInfoFromLLM(nationality, destination) {

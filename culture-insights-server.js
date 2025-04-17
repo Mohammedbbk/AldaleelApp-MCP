@@ -5,7 +5,7 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const { createServerLogger } = require('./server-logger'); // Adjust path if needed
-const { createRequestLogger } = require('./request-logger'); // Adjust path if needed
+// const { createRequestLogger } = require('./request-logger'); // Removed - Caused crash
 
 // --- Configuration ---
 const PORT = process.env.CULTURE_INSIGHTS_PORT || 8008; // Use a new default port
@@ -22,7 +22,7 @@ const logger = createServerLogger('CultureInsights');
 // --- Middleware ---
 app.use(cors()); // Enable CORS for all routes
 app.use(express.json()); // Parse incoming JSON requests
-app.use(createRequestLogger(logger)); // Log incoming requests
+// app.use(createRequestLogger(logger)); // Removed - Caused crash
 
 // --- Helper: Call LLM Service ---
 async function getCultureInsightsFromLLM(nationality, destination) {
