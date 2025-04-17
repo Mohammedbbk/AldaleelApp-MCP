@@ -14,29 +14,22 @@ const baseRequiredEnvVars = [
   'TRIPADVISOR_API_KEY',  // Used by TripAdvisor MCP
 ];
 
-// Additional variables required only in production
-const productionEnvVars = [
-  'VISA_SERVICE_URL',   // Required in production for the external Visa service
-  'CULTURE_SERVICE_URL', // Required in production for the external Culture service
-];
+// VISA_SERVICE_URL and CULTURE_SERVICE_URL are optional.
+// The proxyController defaults to localhost if they aren't set,
+// which is correct for single-service deployments.
 
 const validateEnv = () => {
-  const isProduction = process.env.NODE_ENV === 'production';
-  
   // Always check the base required variables
   const missingBaseVars = baseRequiredEnvVars.filter(varName => !process.env[varName]);
   
-  // In production, also check production-specific variables
-  const missingProdVars = isProduction ? 
-    productionEnvVars.filter(varName => !process.env[varName]) : 
-    [];
-  
-  const allMissingVars = [...missingBaseVars, ...missingProdVars];
+  // Only check base variables now
+  const allMissingVars = [...missingBaseVars]; 
   
   if (allMissingVars.length > 0) {
     // Provide a more helpful error message
     const detailedMissing = allMissingVars.map(varName => {
-      if (varName.endsWith('_URL')) {
+      // Keep URL formatting hint just in case user adds them later for separate deployment
+      if (varName.endsWith('_URL')) { 
         return `${varName} (e.g., https://your-service-name.onrender.com)`;
       }
       return varName;
@@ -44,14 +37,13 @@ const validateEnv = () => {
     throw new Error(`Missing required environment variables: ${detailedMissing.join(', ')}`);
   }
   
-  // Log a warning for development about optional service URLs
-  if (!isProduction) {
-    if (!process.env.VISA_SERVICE_URL) {
-      console.warn('[ENV WARNING] VISA_SERVICE_URL is not set. Proxy will use local visa service on port 8009. Set this variable for external services.');
-    }
-    if (!process.env.CULTURE_SERVICE_URL) {
-      console.warn('[ENV WARNING] CULTURE_SERVICE_URL is not set. Proxy will use local culture service on port 8008. Set this variable for external services.');
-    }
+  // Log a warning if the optional service URLs are not set (useful for awareness)
+  // These warnings are expected in the single-service deployment
+  if (!process.env.VISA_SERVICE_URL) {
+    console.warn('[ENV WARNING] VISA_SERVICE_URL is not set. Proxy will default to internal service (localhost:8009). This is expected for single-service deployments.');
+  }
+  if (!process.env.CULTURE_SERVICE_URL) {
+    console.warn('[ENV WARNING] CULTURE_SERVICE_URL is not set. Proxy will default to internal service (localhost:8008). This is expected for single-service deployments.');
   }
 };
 
@@ -79,9 +71,9 @@ module.exports = {
   VISA_REQUEST_TIMEOUT: parseInt(process.env.VISA_REQUEST_TIMEOUT) || 30000,
   CULTURE_REQUEST_TIMEOUT: parseInt(process.env.CULTURE_REQUEST_TIMEOUT) || 30000,
 
-  // Service URLs for deployed environments (REQUIRED in production)
-  VISA_SERVICE_URL: process.env.VISA_SERVICE_URL, // e.g., https://aldaleel-visa-service.onrender.com
-  CULTURE_SERVICE_URL: process.env.CULTURE_SERVICE_URL, // e.g., https://aldaleel-culture-service.onrender.com
+  // Service URLs are optional - proxyController defaults to localhost if not set
+  VISA_SERVICE_URL: process.env.VISA_SERVICE_URL, 
+  CULTURE_SERVICE_URL: process.env.CULTURE_SERVICE_URL,
 
   WAIT_FOR_SERVERS: process.env.WAIT_FOR_SERVERS === 'true',
   NODE_ENV: process.env.NODE_ENV || 'development'
