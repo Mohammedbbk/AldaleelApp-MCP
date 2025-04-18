@@ -50,11 +50,32 @@ app.post('/generate', async (req, res) => {
       }
     });
   } catch (error) {
-    logger.error('Error generating itinerary:', error);
+    // Log basic error information
+    logger.error('[OpenAI] Error generating itinerary:', error.message);
+
+    // Log the full error object for deep inspection
+    console.error('[OpenAI Detailed Error] Full Object:', JSON.stringify(error, null, 2));
+
+    // Log specific nested properties when available
+    if (error.response) {
+      console.error('[OpenAI Detailed Error] Status:', error.response.status);
+      console.error('[OpenAI Detailed Error] Headers:', error.response.headers);
+      console.error('[OpenAI Detailed Error] Data:', error.response.data);
+    } else {
+      console.error('[OpenAI Detailed Error] Code:', error.code);
+      console.error('[OpenAI Detailed Error] Type:', error.type);
+      console.error('[OpenAI Detailed Error] Param:', error.param);
+    }
+
+    // Respond with a generic message while optionally exposing safe error metadata
     res.status(500).json({
       status: 'error',
       message: 'Failed to generate itinerary',
-      error: error.message
+      errorDetails: {
+        type: error.type,
+        code: error.code,
+        message: error.message
+      }
     });
   }
 });
