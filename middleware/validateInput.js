@@ -4,7 +4,7 @@ const { sanitizeInput } = require('../utils/helpers');
 const tripSchema = Joi.object({
   destination: Joi.string().required().min(2).max(100),
   days: Joi.number().integer().min(1).max(30).required(),
-  budget: Joi.number().positive().required(),
+  budget: Joi.alternatives().try(Joi.number().positive(), Joi.string().min(1)).required(),
   interests: Joi.array().items(Joi.string()).optional(),
   userCountry: Joi.string().optional(),
   travelDates: Joi.string().optional(),
@@ -37,6 +37,11 @@ const validateTravelPlanInput = (req, res, next) => {
   req.body.userCountry = sanitizeInput(userCountry);
   req.body.travelDates = sanitizeInput(travelDates);
   req.body.travelStyle = sanitizeInput(travelStyle);
+
+  // Sanitize budget if it's provided as a string
+  if (typeof budget === 'string') {
+    req.body.budget = sanitizeInput(budget);
+  }
 
   // Validate arrays
   if (!Array.isArray(interests) || !Array.isArray(dietaryRestrictions)) {

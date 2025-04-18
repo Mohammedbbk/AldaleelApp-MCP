@@ -50,7 +50,10 @@ class AIService {
     travelStyle,
     dietaryRestrictions
   }) {
-    return `Create a detailed ${days}-day travel itinerary for ${destination} with a budget of $${budget}.
+    // Format budget: prefix $ if numeric, otherwise use text value
+    const budgetText = typeof budget === 'number' ? `$${budget}` : budget;
+
+    return `Create a detailed ${days}-day travel itinerary for ${destination} with a budget of ${budgetText}.
       ${interests.length > 0 ? `Focus on these interests: ${interests.join(', ')}.` : ''}
       ${userCountry ? `The traveler is from ${userCountry}.` : ''}
       ${travelDates ? `Travel dates: ${travelDates}.` : ''}
