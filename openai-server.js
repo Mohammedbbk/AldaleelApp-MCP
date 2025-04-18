@@ -36,7 +36,7 @@ app.post('/generate', async (req, res) => {
     logger.info('Generating itinerary with prompt:', prompt);
 
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4-turbo-preview',
+      model: 'gpt-4o-mini',
       messages: [{ role: 'user', content: prompt }],
       response_format: { type: 'json_object' }
     });

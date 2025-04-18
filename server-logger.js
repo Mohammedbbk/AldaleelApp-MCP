@@ -35,17 +35,15 @@ const createServerLogger = (serverName) => {
     ]
   });
 
-  // Add console transport in non-production environments
-  if (process.env.NODE_ENV !== 'production') {
-    logger.add(new winston.transports.Console({
-      format: winston.format.combine(
-        winston.format.colorize(),
-        winston.format.printf(({ level, message, timestamp }) => {
-          return `${timestamp} [${serverName}] ${level}: ${message}`;
-        })
-      )
-    }));
-  }
+  // Add console transport in all environments
+  logger.add(new winston.transports.Console({
+    format: winston.format.combine(
+      winston.format.colorize(),
+      winston.format.printf(({ level, message, timestamp }) => {
+        return `${timestamp} [${serverName}] ${level}: ${message}`;
+      })
+    )
+  }));
 
   return logger;
 };
