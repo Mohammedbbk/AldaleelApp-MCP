@@ -6,9 +6,17 @@ const logger = createServerLogger('TripService');
 class TripService {
   async createTrip(tripData) {
     try {
+      // Map budgetLevel or budget string to numeric code
+      const levelMap = { Economy: 1, Moderate: 2, Luxury: 3 };
+      const rawLevel = tripData.budgetLevel ?? tripData.budget;
+      const numericBudget = levelMap[rawLevel] ?? (typeof tripData.budget === 'number' ? tripData.budget : null);
+
+      // Prepare data object for insertion with numeric budget
+      const dataToInsert = { ...tripData, budget: numericBudget };
+
       const { data, error } = await supabase
         .from('trips')
-        .insert([tripData]);
+        .insert([dataToInsert]);
 
       if (error) throw error;
       return data;
