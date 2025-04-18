@@ -7,13 +7,24 @@ const { createServerLogger, createRequestLogger } = require('./server-logger');
 dotenv.config();
 const app = express();
 const logger = createServerLogger('LiveEvents');
+const SERVICE_NAME = 'Live Events';
 
 app.use(cors());
 app.use(express.json());
-app.use(createRequestLogger(logger));
 
 const TICKETMASTER_API_KEY = process.env.TICKETMASTER_API_KEY;
 const TICKETMASTER_API_URL = 'https://app.ticketmaster.com/discovery/v2';
+
+try {
+  if (!TICKETMASTER_API_KEY) {
+    logger.warn(`[${SERVICE_NAME}] TICKETMASTER_API_KEY environment variable not set.`);
+  } else {
+    logger.info(`[${SERVICE_NAME}] Ticketmaster API Key loaded.`);
+  }
+} catch (error) {
+  logger.error(`[${SERVICE_NAME} Error] Initialization check failed:`, error);
+  console.error(`[${SERVICE_NAME} Error] Initialization check failed: ${error.message}`);
+}
 
 async function getEvents(location, startDate, endDate) {
   try {
@@ -36,6 +47,13 @@ async function getEvents(location, startDate, endDate) {
 
 app.post('/events', async (req, res) => {
   try {
+    if (!TICKETMASTER_API_KEY) {
+      logger.error(`[${SERVICE_NAME} Error] Attempted to fetch events but API key is missing.`);
+      return res.status(503).json({
+        error: 'Ticketmaster service unavailable - API key missing'
+      });
+    }
+    
     const { location, startDate, endDate } = req.body;
     
     if (!location || !startDate || !endDate) {
@@ -59,6 +77,16 @@ app.get('/health', (req, res) => {
 });
 
 const PORT = process.env.LIVE_EVENTS_PORT || 8005;
-app.listen(PORT, '0.0.0.0', () => {
-  logger.info(`Live Events MCP Server running on port ${PORT}`);
+const server = app.listen(PORT, '0.0.0.0', () => {
+  logger.info(`[${SERVICE_NAME}] Server listening successfully on port ${PORT}`);
+  console.log(`[${SERVICE_NAME}] Server listening successfully on port ${PORT}`);
+  if (!TICKETMASTER_API_KEY) {
+     logger.warn(`[${SERVICE_NAME}] Server started, but Ticketmaster API key is MISSING.`);
+  }
+});
+
+server.on('error', (error) => {
+  logger.error(`[${SERVICE_NAME} Server Error] Failed to start server:`, error);
+  console.error(`[${SERVICE_NAME} Server Error] Failed to start server: ${error.code} - ${error.message}`);
+  process.exit(1);
 });
