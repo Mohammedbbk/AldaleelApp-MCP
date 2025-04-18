@@ -4,6 +4,9 @@ const env = require('../config/env');
 
 const logger = createServerLogger('AIService');
 
+// Log whether the OpenAI API key is loaded
+logger.info('[AIService] OpenAI Key Loaded:', env.OPENAI_API_KEY ? 'Yes' : 'No');
+
 class AIService {
   async generateItinerary({
     destination,
@@ -26,16 +29,21 @@ class AIService {
         travelStyle,
         dietaryRestrictions
       });
-
+      // Log the prompt before sending to AI server
+      logger.info('[AIService] Built prompt:', prompt);
       logger.info(`Sending request to AI server at http://localhost:${env.AI_SERVER_PORT}/generate`);
       
       const response = await axios.post(`http://localhost:${env.AI_SERVER_PORT}/generate`, {
         prompt
       });
-
+      // Log the raw response data from AI server
+      logger.info('[AIService] Raw AI server response:', JSON.stringify(response.data, null, 2));
+      
       return this.parseItineraryResponse(response.data);
     } catch (error) {
       logger.error('Error generating itinerary:', error);
+      // Log the error response data if available
+      logger.error('[AIService] Error response data:', error.response?.data);
       throw error;
     }
   }

@@ -10,6 +10,8 @@ const logger = createServerLogger('TripRoutes');
 
 // Generate travel plan
 router.post('/generate', validateTravelPlanInput, async (req, res) => {
+  // Log the raw request body received
+  logger.info('[TripRoutes] /generate Raw request body:', JSON.stringify(req.body, null, 2));
   try {
     const {
       destination,
@@ -71,6 +73,8 @@ router.post('/generate', validateTravelPlanInput, async (req, res) => {
       }
     });
   } catch (error) {
+    // Log AI service error response data if available
+    logger.error('[TripRoutes] AI service error response data:', error.response?.data);
     logger.error('Error generating travel plan:', error);
     logger.error('Error stack:', error.stack);
 

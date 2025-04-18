@@ -71,7 +71,13 @@ app.set('trust proxy', 1);
 app.use(cors()); // Enable CORS - consider more specific origins for production
 app.use(express.json()); // Parse JSON bodies
 app.use(createRequestLogger(logger)); // Log requests
-app.use(userLimiter); // Apply rate limiting AFTER trusting the proxy
+// Conditionally apply rate limiter, skipping the /health endpoint
+app.use((req, res, next) => {
+  if (req.path === '/health') {
+    return next();
+  }
+  return userLimiter(req, res, next);
+});
 
 // Mount routes
 app.use('/api/trips', tripRoutes);
