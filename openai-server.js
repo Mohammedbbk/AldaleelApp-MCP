@@ -82,9 +82,17 @@ app.post('/generate', async (req, res) => {
 
 // Start server
 const port = process.env.AI_SERVER_PORT || env.AI_SERVER_PORT || 8001;
-app.listen(port, '0.0.0.0', () => {
+const server = app.listen(port, '0.0.0.0', () => {
+  const address = server.address();
+  console.log(`[OpenAI Server] Successfully listening on ${address.address}:${address.port}`);
   logger.info(`OpenAI server running on port ${port}`);
   console.log(`OpenAI Service listening on port ${port}`);
+});
+
+server.on('error', (error) => {
+  logger.error(`[OpenAI Server] Failed to start listening on port ${port}:`, error);
+  console.error(`[OpenAI Server] Failed to start listening on port ${port}:`, error);
+  process.exit(1);
 });
 
 // Handle graceful shutdown

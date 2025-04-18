@@ -31,9 +31,9 @@ class AIService {
       });
       // Log the prompt before sending to AI server
       logger.info('[AIService] Built prompt:', prompt);
-      logger.info(`Sending request to AI server at http://localhost:${env.AI_SERVER_PORT}/generate`);
+      logger.info(`Sending request to AI server at http://127.0.0.1:${env.AI_SERVER_PORT}/generate`);
       
-      const response = await axios.post(`http://localhost:${env.AI_SERVER_PORT}/generate`, {
+      const response = await axios.post(`http://127.0.0.1:${env.AI_SERVER_PORT}/generate`, {
         prompt
       });
       // Log the raw response data from AI server
