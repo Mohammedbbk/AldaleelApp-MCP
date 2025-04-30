@@ -12,7 +12,7 @@ const logger = createServerLogger('BraveLLM');
 // Initialize OpenAI Client
 if (!env.OPENAI_API_KEY) {
     logger.error('FATAL ERROR: OPENAI_API_KEY environment variable is not set.');
-    process.exit(1); // Exit if API key is missing
+    process.exit(1); 
 }
 const openai = new OpenAI({
     apiKey: env.OPENAI_API_KEY,
@@ -67,8 +67,6 @@ app.post('/api/chat', async (req, res) => {
 
     logger.info(`Successfully received response from OpenAI.`);
 
-    // Return the response in the expected format
-    // (Matching the previous mock structure for compatibility)
     const response = {
         choices: [
             {

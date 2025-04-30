@@ -147,4 +147,86 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Chat with AI assistant for trip planning
+router.post('/chat', async (req, res) => {
+  // Log the raw request body received
+  logger.info('[TripRoutes] /chat Raw request body:', JSON.stringify(req.body, null, 2));
+  
+  try {
+    const { message, context, tripData } = req.body;
+    
+    if (!message) {
+      return res.status(400).json({
+        status: 'error',
+        code: 'MISSING_MESSAGE',
+        message: 'Message is required'
+      });
+    }
+
+    logger.info('Processing chat request:', { message, context });
+
+    // Build the prompt for the AI service
+    let prompt = `You are Al-Daleel, a helpful travel assistant. As a knowledgeable travel guide, provide clear, concise information.`;
+    
+    // Add context about previous trip data if available
+    if (tripData) {
+      prompt += `\n\nThe user has previously shared the following travel details:
+      - Destination: ${tripData.destination || 'Not specified'}
+      - Duration: ${tripData.days || tripData.duration || 'Not specified'} days
+      - Budget: ${tripData.budget || 'Not specified'}
+      - Travel style: ${tripData.travelStyle || 'Not specified'}
+      - Interests: ${tripData.interests ? tripData.interests.join(', ') : 'Not specified'}`;
+    }
+
+    // Add the user's message
+    prompt += `\n\nUser message: ${message}`;
+    
+    // Add instructions for formatting the response
+    prompt += `\n\nRespond naturally as a helpful travel assistant. If the user is asking about modifying a trip plan, suggest helpful changes. If they're asking for information, provide accurate travel advice.`;
+
+    // Call the AI service with our built prompt
+    const response = await fetch(`http://127.0.0.1:${process.env.AI_SERVER_PORT || 8001}/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ prompt })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      logger.error('AI service error:', errorData);
+      throw new Error(errorData.message || 'AI service error');
+    }
+
+    const aiData = await response.json();
+    
+    // Extract the response content from the AI service response
+    let responseContent;
+    try {
+      const content = aiData.data.content;
+      const parsed = JSON.parse(content);
+      responseContent = parsed.response || parsed.message || content;
+    } catch (error) {
+      // If parsing fails, just use the content as a string
+      responseContent = aiData.data.content;
+    }
+
+    res.json({
+      status: 'success',
+      response: responseContent
+    });
+  } catch (error) {
+    logger.error('Error generating chat response:', error);
+    logger.error('Error stack:', error.stack);
+
+    res.status(500).json({
+      status: 'error',
+      code: 'CHAT_ERROR',
+      message: 'Failed to generate response',
+      details: error.message
+    });
+  }
+});
+
 module.exports = router;
