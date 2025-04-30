@@ -45,6 +45,7 @@ export function validateResponse(schema: any) {
         const validationResult = schema.validate(body);
         if (validationResult.error) {
           console.error('Response validation failed:', validationResult.error);
+          // No change needed here, validationResult.error is usually well-typed by Joi
           const errorResponse = createErrorResponse(
             'RESPONSE_VALIDATION_ERROR',
             'Internal response validation failed',
@@ -53,14 +54,32 @@ export function validateResponse(schema: any) {
           return originalJson.call(this, errorResponse);
         }
         return originalJson.call(this, body);
-      } catch (error) {
+      } catch (error) { // 'error' is potentially unknown
         console.error('Response validation error:', error);
+
+        // --- FIX START ---
+        let errorMessage = 'An unexpected error occurred during response validation.'; // Default message
+
+        if (error instanceof Error) {
+          // If it's a standard Error object, use its message
+          errorMessage = error.message;
+        } else if (typeof error === 'string') {
+           // If a plain string was thrown
+           errorMessage = error;
+        }
+        // You could add more checks here (e.g., for objects with a message property) if needed
+        
         const errorResponse = createErrorResponse(
           'RESPONSE_VALIDATION_ERROR',
           'Internal response validation failed',
-          error.message
+          errorMessage // Use the safely extracted message
         );
-        return originalJson.call(this, errorResponse);
+        // --- FIX END ---
+
+        // originalJson needs to be called within the function scope where it was defined
+        // It seems 'this' might be incorrect here depending on how res.json is called.
+        // Assuming 'this' refers to the response object as intended by originalJson.call(this, ...)
+        return originalJson.call(this, errorResponse); 
       }
     };
     next();

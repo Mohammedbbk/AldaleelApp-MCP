@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "start:live-events": "node live-events-server.js",
+    "build": "tsc",
     "start:travel-planner": "node mapbox-travel-planner.js"
   },
   "dependencies": {
@@ -29,6 +30,10 @@
     "ws": "^8.18.1"
   },
   "devDependencies": {
-    "@types/express": "^5.0.1"
+    "@types/express": "^5.0.1",
+    "@types/joi": "^17.2.2",
+    "@types/node": "^22.15.3",
+    "@types/uuid": "^10.0.0",
+    "typescript": "^5.8.3"
   }
 }

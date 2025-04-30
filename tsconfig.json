@@ -1,0 +1,28 @@
+// AldaleelMCP/tsconfig.json
+{
+    "compilerOptions": {
+      "target": "ES2016", // Or a newer target like ES2020, ESNext depending on your Node.js version support
+      "module": "CommonJS", // Essential for using require/module.exports
+      "outDir": "./dist", // Output directory for compiled JS files
+      "rootDir": "./", // Root directory of your source files (including .js and .ts)
+      "strict": true, // Enable strict type checking
+      "esModuleInterop": true, // Allows default imports from modules with no default export
+      "skipLibCheck": true, // Skip type checking of declaration files
+      "forceConsistentCasingInFileNames": true, // Disallow inconsistently-cased references to the same file
+      "resolveJsonModule": true, // Allows importing JSON files
+      "allowJs": true, // Allow JavaScript files to be compiled (important since you have mixed .js and .ts)
+      "checkJs": false // Do not type-check JavaScript files by default
+      // "sourceMap": true, // Optional: Generate source maps for debugging
+    },
+    "include": [
+      "**/*.ts", // Include all TypeScript files
+      "**/*.js"  // Include JavaScript files if needed (or adjust include/exclude)
+      // Make sure paths are relative to tsconfig.json
+    ],
+    "exclude": [
+      "node_modules", // Exclude node_modules
+      "dist", // Exclude the output directory
+      "logs" // Exclude logs
+      // Add any other directories you want to exclude
+    ]
+  }
