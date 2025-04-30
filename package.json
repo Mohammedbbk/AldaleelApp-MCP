@@ -27,5 +27,8 @@
     "uuid": "^11.1.0",
     "winston": "^3.17.0",
     "ws": "^8.18.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.1"
   }
 }

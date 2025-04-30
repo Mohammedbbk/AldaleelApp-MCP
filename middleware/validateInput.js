@@ -9,8 +9,12 @@ const tripSchema = Joi.object({
   userCountry: Joi.string().optional(),
   travelDates: Joi.string().optional(),
   travelStyle: Joi.string().optional(),
-  dietaryRestrictions: Joi.array().items(Joi.string()).optional()
-});
+  dietaryRestrictions: Joi.array().items(Joi.string()).optional(),
+  specialRequirements: Joi.array().items(Joi.string()).optional(),
+  additionalRequirement: Joi.string().optional(),
+  transportationPreference: Joi.array().items(Joi.string()).optional(),
+  tripPace: Joi.string().optional()
+}).unknown(true);
 
 const validateTravelPlanInput = (req, res, next) => {
   const { error } = tripSchema.validate(req.body);
