@@ -6,3 +6,10 @@ logs/
 *.pyc
 .DS_Store
 .env.example
+dist/
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.development
+.env.test
