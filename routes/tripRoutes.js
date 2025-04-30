@@ -16,73 +16,75 @@ const router = express.Router();
 const logger = createServerLogger('TripRoutes');
 
 // Generate travel plan
-router.post('/generate', 
-  validateTravelPlanInput, 
-  debounceRequests(2000), // 2 second debounce
+router.post('/generate',
+  validateTravelPlanInput,
+  debounceRequests(2000),
   async (req, res) => {
     logger.info('[TripRoutes] /generate Raw request body:', JSON.stringify(req.body, null, 2));
     try {
+      // Destructure using expected frontend names (camelCase)
       const {
         destination,
         days,
-        budget,
+        budget, // Assuming budget comes as string/number matching schema 'text' type after mapping?
         interests = [],
-        userCountry = '',
+        userCountry = '', // Frontend might send userCountry directly now
+        nationality = '', // Or it might send nationality
         travelDates = '',
-        travelStyle = '',
-        dietaryRestrictions = []
+        travelStyle = '', // Frontend likely sends travelStyle
+        travelerStyle = '', // Or maybe travelerStyle
+        dietaryRestrictions = [] // Frontend sends dietaryRestrictions
       } = req.body;
 
-      logger.info('Processing travel plan request:', {
-        destination,
-        days,
-        budget,
-        interests,
-        userCountry,
-        travelDates,
-        travelStyle,
-        dietaryRestrictions
-      });
-
-      const tripId = uuidv4();
-      const startTime = Date.now();
-      
-      const itinerary = await aiService.generateItinerary({
-        destination,
-        days,
-        budget,
-        interests,
-        userCountry,
-        travelDates,
-        travelStyle,
-        dietaryRestrictions
-      });
-
-      const tripData = {
-        id: tripId,
-        destination,
-        days,
-        budget,
-        interests,
-        userCountry,
-        travelDates,
-        travelStyle,
-        dietaryRestrictions,
-        itinerary,
-        createdAt: new Date().toISOString()
+      // Map frontend names to exact DB column names (snake_case)
+      const dbTripData = {
+        id: uuidv4(), // Generate new ID
+        destination: destination,
+        days: days,
+        budget: budget, // Use the budget value directly (schema is text)
+        interests: interests,
+        // Map JS camelCase to DB snake_case
+        user_country: userCountry || nationality, // Use whichever is provided
+        travel_dates: travelDates,
+        travel_style: travelStyle || travelerStyle, // Use whichever is provided
+        dietary_restrictions: dietaryRestrictions, // <<-- Use snake_case key
+        // We get itinerary after AI call
+        // createdAt is handled by default value in DB schema
       };
 
-      await tripService.createTrip(tripData);
+      logger.info('Processing travel plan request (mapped to DB keys):', dbTripData);
+
+      const startTime = Date.now();
+
+      // Call AI service (pass relevant data needed for prompt)
+      const itinerary = await aiService.generateItinerary({
+        // Pass data needed by AI service prompt construction
+        destination,
+        days,
+        budget,
+        interests,
+        userCountry: dbTripData.user_country, // Pass consistent value
+        travelDates,
+        travelStyle: dbTripData.travel_style, // Pass consistent value
+        dietaryRestrictions
+      });
+
+      // Add itinerary to the data object going to the DB service
+      dbTripData.itinerary = itinerary; // Add the generated itinerary
+
+      // Call tripService with the object using snake_case keys
+      await tripService.createTrip(dbTripData); // Pass dbTripData now
       logger.info('Trip saved successfully');
 
       res.json(createSuccessResponse({
-        tripId,
-        itinerary
+        tripId: dbTripData.id, // Use the generated ID
+        itinerary // Return the generated itinerary
       }, {
         processingTime: Date.now() - startTime,
         source: 'ai_service'
       }));
     } catch (error) {
+      // ... existing error handling ...
       logger.error('[TripRoutes] AI service error response data:', error.response?.data);
       logger.error('Error generating travel plan:', error);
       logger.error('Error stack:', error.stack);
@@ -98,182 +100,133 @@ router.post('/generate',
           'Try again in a few minutes'
         ]
       );
-
-      if (error.response?.data) {
+       if (error.response?.data) {
         errorResponse.serviceError = error.response.data;
       }
-
       res.status(statusCode).json(errorResponse);
     }
 });
 
-// Get trip by ID
-router.get('/:tripId',
-  cacheResponse(60000), // Cache for 1 minute
-  async (req, res) => {
-    try {
-      const { tripId } = req.params;
-      const startTime = Date.now();
-      const trip = await tripService.getTripById(tripId);
-
-      if (!trip) {
-        return res.status(404).json(createErrorResponse(
-          'NOT_FOUND',
-          'Trip not found',
-          `No trip found with ID: ${tripId}`,
-          ['Check if the trip ID is correct', 'Try searching for your trip']
-        ));
-      }
-
-      res.json(createSuccessResponse(trip, {
-        processingTime: Date.now() - startTime,
-        source: 'database',
-        cached: false
-      }));
-    } catch (error) {
-      logger.error('Error retrieving trip:', error);
-      res.status(500).json(createErrorResponse(
-        'INTERNAL_SERVER_ERROR',
-        'Failed to retrieve trip data',
-        error.message,
-        ['Try again in a few moments']
-      ));
-    }
-});
-
-// Get all trips with pagination
-router.get('/',
-  cacheResponse(30000), // Cache for 30 seconds
-  async (req, res) => {
-    try {
-      const page = parseInt(req.query.page) || 1;
-      const limit = parseInt(req.query.limit) || 10;
-      const startTime = Date.now();
-
-      const result = await tripService.getTrips(page, limit);
-      res.json(createSuccessResponse({
-        trips: result.data,
-        pagination: result.pagination
-      }, {
-        processingTime: Date.now() - startTime,
-        source: 'database',
-        cached: false
-      }));
-    } catch (error) {
-      logger.error('Error retrieving trips:', error);
-      res.status(500).json(createErrorResponse(
-        'INTERNAL_SERVER_ERROR',
-        'Failed to retrieve trips',
-        error.message,
-        ['Try refreshing the page', 'Adjust the pagination parameters']
-      ));
-    }
-});
-
-// Chat with AI assistant for trip planning
-router.post('/chat',
-  debounceRequests(1000), // 1 second debounce
-  async (req, res) => {
-    logger.info('[TripRoutes] /chat Raw request body:', JSON.stringify(req.body, null, 2));
-    
-    try {
-      const { message, context, tripData } = req.body;
-      const startTime = Date.now();
-      
-      if (!message) {
-        return res.status(400).json(createErrorResponse(
-          'MISSING_MESSAGE',
-          'Message is required',
-          'The message field cannot be empty',
-          ['Please provide a message to continue the conversation']
-        ));
-      }
-
-      logger.info('Processing chat request:', { message, context });
-
-      // Build the prompt with improved context handling
-      let prompt = `You are Al-Daleel, a helpful travel assistant. As a knowledgeable travel guide, provide clear, concise information.`;
-      
-      if (tripData) {
-        prompt += `\n\nContext from previous conversation:\n`;
-        prompt += `- Destination: ${tripData.destination || 'Not specified'}\n`;
-        prompt += `- Duration: ${tripData.days || tripData.duration || 'Not specified'} days\n`;
-        prompt += `- Budget: ${tripData.budget || 'Not specified'}\n`;
-        prompt += `- Travel style: ${tripData.travelStyle || 'Not specified'}\n`;
-        prompt += `- Interests: ${tripData.interests ? tripData.interests.join(', ') : 'Not specified'}\n`;
-        
-        if (tripData.conversation?.summary) {
-          prompt += `\nPrevious conversation summary: ${tripData.conversation.summary}\n`;
-        }
-      }
-
-      prompt += `\nUser message: ${message}\n`;
-      prompt += `\nRespond naturally as a helpful travel assistant. If the user is asking about modifying a trip plan, suggest helpful changes. If they're asking for information, provide accurate travel advice.`;
-
-      // Call the AI service with improved error handling
-      const response = await fetch(`http://127.0.0.1:${process.env.AI_SERVER_PORT || 8001}/generate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ prompt })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        logger.error('AI service error:', errorData);
-        throw new Error(errorData.message || 'AI service error');
-      }
-
-      const aiData = await response.json();
-      
-      // Extract and validate the response content
-      let responseContent;
-      try {
-        const content = aiData.data.content;
-        const parsed = JSON.parse(content);
-        responseContent = parsed.response || parsed.message || content;
-      } catch (error) {
-        responseContent = aiData.data.content;
-      }
-
-      // Create a chat message response
-      const chatMessage = {
-        role: 'assistant',
-        content: responseContent,
-        timestamp: new Date().toISOString(),
-        metadata: {
-          confidence: aiData.data.confidence,
-          processingTime: Date.now() - startTime
-        }
-      };
-
-      res.json(createSuccessResponse({
-        message: chatMessage,
-        conversation: {
-          id: uuidv4(),
-          context: context || 'general',
-          summary: tripData?.conversation?.summary
-        }
-      }, {
-        processingTime: Date.now() - startTime,
-        source: 'ai_service'
-      }));
-    } catch (error) {
-      logger.error('Error generating chat response:', error);
-      logger.error('Error stack:', error.stack);
-
-      res.status(500).json(createErrorResponse(
-        'CHAT_ERROR',
-        'Failed to generate response',
-        error.message,
-        [
-          'Try rephrasing your question',
-          'Check your internet connection',
-          'Try again in a few moments'
-        ]
-      ));
-    }
-});
+// ... rest of tripRoutes.js ...
 
 module.exports = router;
+
+// ----- Also, update tripService.js -----
+
+// AldaleelApp-MCP/services/tripService.js
+const { supabase } = require('../config/supabaseClient');
+const { createServerLogger } = require('../server-logger');
+
+const logger = createServerLogger('TripService');
+
+class TripService {
+  async createTrip(dbTripData) { // Parameter name changed for clarity
+    try {
+      // Remove the budget mapping logic here, as the schema expects text
+      // and the route handler now passes the budget value directly.
+      // The object passed should now have keys matching DB columns.
+      const dataToInsert = { ...dbTripData }; // Use the passed object directly
+
+      logger.info('Inserting into trips table:', JSON.stringify(dataToInsert, null, 2));
+
+      const { data, error } = await supabase
+        .from('trips')
+        .insert([dataToInsert])
+        .select(); // Optionally select the inserted data back
+
+      if (error) {
+          logger.error('Supabase insert error:', JSON.stringify(error, null, 2));
+          throw error;
+      }
+      logger.info('Supabase insert success:', data);
+      // Return the first element from the data array returned by .select()
+      return data ? data[0] : null;
+    } catch (error) {
+      logger.error('Error creating trip:', error);
+      throw error; // Re-throw the original error
+    }
+  }
+
+  // ... other methods (getTripById, getTrips, updateTrip) ...
+  // Ensure these methods also handle potential camelCase vs snake_case issues if necessary,
+  // although SELECT operations are often less problematic than INSERT/UPDATE.
+
+  async getTripById(tripId) {
+    try {
+      const { data, error } = await supabase
+        .from('trips')
+        .select('*') // Selects all columns (using their DB names)
+        .eq('id', tripId)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') { // Specific Supabase code for "Not Found" on .single()
+          logger.warn(`Trip not found with ID: ${tripId}`);
+          return null;
+        }
+        throw error; // Rethrow other errors
+      }
+      // Supabase client returns data with keys matching DB columns (snake_case)
+      // If needed, you could map these back to camelCase here before returning
+      return data;
+    } catch (error) {
+      logger.error('Error getting trip:', error);
+      throw error;
+    }
+  }
+
+  async getTrips(page = 1, limit = 10) {
+    try {
+      const { data, count, error } = await supabase
+        .from('trips')
+        .select('*', { count: 'exact' })
+        .order('createdAt', { ascending: false }) // Example order
+        .range((page - 1) * limit, page * limit - 1);
+
+      if (error) throw error;
+
+      // Data keys will be snake_case
+      return {
+        data,
+        pagination: {
+          currentPage: page, // Renamed for clarity
+          pageSize: limit, // Renamed for clarity
+          totalCount: count,
+          totalPages: Math.ceil(count / limit),
+        }
+      };
+    } catch (error) {
+      logger.error('Error getting trips:', error);
+      throw error;
+    }
+  }
+
+   async updateTrip(tripId, newData) {
+    try {
+      // Ensure keys in newData match DB columns (snake_case)
+      // You might need mapping here if newData comes from frontend with camelCase
+      const dataToUpdate = { ...newData }; // Assume newData has snake_case keys for now
+      // Example mapping if needed:
+      // const dataToUpdate = {
+      //   user_country: newData.userCountry,
+      //   travel_style: newData.travelStyle,
+      //   // ... map other fields
+      // };
+
+      const { data, error } = await supabase
+        .from('trips')
+        .update(dataToUpdate)
+        .eq('id', tripId)
+        .select(); // Select updated row
+
+      if (error) throw error;
+      return data ? data[0] : null; // Return updated row
+    } catch (error) {
+      logger.error('Error updating trip:', error);
+      throw error;
+    }
+  }
+
+}
+
+module.exports = new TripService();
