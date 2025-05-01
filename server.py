@@ -16,8 +16,6 @@ try:
     TRIPADVISOR_API_KEY = os.getenv('TRIPADVISOR_API_KEY')
     if not TRIPADVISOR_API_KEY:
         print(f'[{SERVICE_NAME} Warning] TRIPADVISOR_API_KEY environment variable not set.', file=sys.stderr)
-        # Decide if this is critical. If so, raise an exception:
-        # raise ValueError("TRIPADVISOR_API_KEY is missing.")
     else:
         print(f'[{SERVICE_NAME}] TripAdvisor API Key loaded.', file=sys.stderr)
 
