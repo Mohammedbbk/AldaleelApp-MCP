@@ -1,90 +1,134 @@
-const { supabase } = require('../config/supabaseClient');
-const { createServerLogger } = require('../server-logger');
+const express = require("express");
+const router = express.Router();
+const { createServerLogger } = require("../server-logger");
+const axios = require("axios");
+const env = require("../config/env");
 
-const logger = createServerLogger('TripService');
+const logger = createServerLogger("TripService");
 
-class TripService {
-  async createTrip(tripData) {
-    try {
-      // Map budgetLevel or budget string to numeric code
-      const levelMap = { Economy: 1, Moderate: 2, Luxury: 3 };
-      const rawLevel = tripData.budgetLevel ?? tripData.budget;
-      const numericBudget = levelMap[rawLevel] ?? (typeof tripData.budget === 'number' ? tripData.budget : null);
+// Set service-specific timeout
+const serviceTimeout = parseInt(process.env.CULTURE_REQUEST_TIMEOUT) || 30000;
 
-      // Prepare data object for insertion with numeric budget
-      const dataToInsert = { ...tripData, budget: numericBudget };
+router.use((req, res, next) => {
+  req.setTimeout(serviceTimeout);
+  logger.info(`[TripService] ${req.method} ${req.originalUrl}`, {
+    query: req.query,
+    headers: req.headers,
+    timeout: serviceTimeout,
+  });
+  next();
+});
 
-      const { data, error } = await supabase
-        .from('trips')
-        .insert([dataToInsert]);
+router.get("/", async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const filter = req.query.filter || "all";
+    const sort = req.query.sort || "date";
+    const search = req.query.search || "";
 
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      logger.error('Error creating trip:', error);
-      throw error;
-    }
+    // Mock data
+    const trips = [
+      {
+        id: 1,
+        destination: "Paris",
+        startDate: "2024-06-01",
+        endDate: "2024-06-07",
+        status: "upcoming",
+        userCountry: "USA",
+      },
+      {
+        id: 2,
+        destination: "Tokyo",
+        startDate: "2024-07-01",
+        endDate: "2024-07-14",
+        status: "upcoming",
+        userCountry: "UK",
+      },
+    ];
+
+    // Set response headers
+    res.set({
+      "Content-Type": "application/json",
+      "Cache-Control": "no-cache",
+      "X-Content-Type-Options": "nosniff",
+    });
+
+    return res.status(200).json({
+      status: "success",
+      data: {
+        trips: trips,
+      },
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(trips.length / limit),
+        totalItems: trips.length,
+      },
+    });
+  } catch (error) {
+    logger.error("Failed to fetch trips:", error);
+    return res.status(500).json({
+      status: "error",
+      message: "Failed to fetch trips",
+      error: error.message,
+    });
   }
+});
 
-  async getTripById(tripId) {
-    try {
-      const { data, error } = await supabase
-        .from('trips')
-        .select('*')
-        .eq('id', tripId)
-        .single();
+router.post("/generate", async (req, res) => {
+  try {
+    logger.info("[TripService] Received generation request:", req.body);
 
-      if (error) {
-        if (error.code === 'PGRST116') {
-          return null;
-        }
-        throw error;
+    // Call OpenAI server
+    const response = await axios.post(
+      `http://localhost:${env.AI_SERVER_PORT}/generate`,
+      {
+        prompt: buildTripPrompt(req.body),
       }
+    );
 
-      return data;
-    } catch (error) {
-      logger.error('Error getting trip:', error);
-      throw error;
-    }
+    logger.info("[TripService] Successfully generated content");
+
+    return res.json({
+      status: "success",
+      data: response.data,
+    });
+  } catch (error) {
+    logger.error("[TripService] Generation error:", error);
+    return res.status(500).json({
+      status: "error",
+      message: "Failed to generate trip plan",
+      error: error.message,
+    });
   }
+});
 
-  async getTrips(page = 1, limit = 10) {
-    try {
-      const { data, count, error } = await supabase
-        .from('trips')
-        .select('*', { count: 'exact' })
-        .range((page - 1) * limit, page * limit - 1);
+function buildTripPrompt(tripData) {
+  const {
+    destination,
+    duration,
+    interests,
+    travelerStyle,
+    nationality,
+    specialRequirements,
+  } = tripData;
 
-      if (error) throw error;
+  return `Create a detailed ${duration}-day travel itinerary for ${destination}.
+  Traveler Profile:
+  - Style: ${travelerStyle}
+  - Nationality: ${nationality}
+  - Interests: ${interests.join(", ")}
+  - Special Requirements: ${specialRequirements.join(", ")}
 
-      return {
-        data,
-        pagination: {
-          current: page,
-          total: Math.ceil(count / limit),
-          perPage: limit
-        }
-      };
-    } catch (error) {
-      logger.error('Error getting trips:', error);
-      throw error;
-    }
-  }
-
-  async updateTrip(tripId, newData) {
-    try {
-      const { data, error } = await supabase.rpc('update_trip_with_lock', {
-        p_trip_id: tripId,
-        p_new_data: newData
-      });
-
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      logger.error('Error updating trip:', error);
-      throw error;
-    }
-  }
+  Please provide:
+  1. Daily itinerary with activities
+  2. Local customs and cultural considerations
+  3. Visa requirements
+  4. Weather information
+  5. Transportation recommendations
+  6. Estimated costs
+  
+  Format as a structured JSON response.`;
 }
 
-module.exports = new TripService();
+module.exports = router;
