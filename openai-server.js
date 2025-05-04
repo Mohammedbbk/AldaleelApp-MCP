@@ -10,6 +10,108 @@ dotenv.config({ override: true });
 
 const app = express();
 const logger = createServerLogger("OpenAI");
+const PORT = process.env.AI_SERVER_PORT || 8001;
+
+// Define the function schema inline to ensure it's available
+const functionSchema = {
+  name: "generate_travel_plan",
+  description: "Generate a structured travel plan",
+  parameters: {
+    type: "object",
+    required: ["TripInfo", "Days", "LocalInfo"],
+    properties: {
+      TripInfo: {
+        type: "object",
+        required: [
+          "Title",
+          "Destination",
+          "Duration",
+          "TotalCost",
+          "Style",
+          "Nationality",
+        ],
+        properties: {
+          Title: { type: "string", description: "Title of the trip" },
+          Destination: {
+            type: "string",
+            description: "Destination city and country",
+          },
+          Duration: { type: "string", description: "Duration of the trip" },
+          TotalCost: { type: "string", description: "Estimated total cost" },
+          Style: {
+            type: "string",
+            description: "Travel style (Solo, Family, etc)",
+          },
+          Nationality: {
+            type: "string",
+            description: "Traveler's nationality",
+          },
+          Requirements: {
+            type: "array",
+            items: { type: "string" },
+            description: "Special requirements like Halal food",
+          },
+        },
+      },
+      Days: {
+        type: "array",
+        items: {
+          type: "object",
+          required: ["DayNumber", "Activities", "Transport", "DailyCost"],
+          properties: {
+            DayNumber: { type: "number" },
+            Activities: {
+              type: "object",
+              required: ["Morning", "Afternoon", "Evening"],
+              properties: {
+                Morning: {
+                  type: "object",
+                  required: ["Activity", "Description"],
+                  properties: {
+                    Activity: { type: "string" },
+                    Description: { type: "string" },
+                    Cost: { type: "string" },
+                  },
+                },
+                Afternoon: {
+                  type: "object",
+                  required: ["Activity", "Description"],
+                  properties: {
+                    Activity: { type: "string" },
+                    Description: { type: "string" },
+                    Cost: { type: "string" },
+                  },
+                },
+                Evening: {
+                  type: "object",
+                  required: ["Activity", "Description"],
+                  properties: {
+                    Activity: { type: "string" },
+                    Description: { type: "string" },
+                    Cost: { type: "string" },
+                  },
+                },
+              },
+            },
+            Transport: { type: "string" },
+            DailyCost: { type: "string" },
+          },
+        },
+      },
+      LocalInfo: {
+        type: "object",
+        required: ["Customs", "Weather", "Transport", "Health", "Visa"],
+        properties: {
+          Customs: { type: "string" },
+          Weather: { type: "string" },
+          Transport: { type: "string" },
+          Health: { type: "string" },
+          Visa: { type: "string" },
+        },
+      },
+    },
+  },
+};
 
 // Middleware
 app.use(cors());
@@ -21,35 +123,12 @@ function initializeOpenAI() {
   openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY || env.OPENAI_API_KEY,
   });
-  logger.info(
-    "[OpenAI] Initialized with API key:",
-    (process.env.OPENAI_API_KEY || env.OPENAI_API_KEY).substring(0, 10) + "..."
-  );
+  logger.info("OpenAI client initialized successfully");
 }
 
-// Initialize on startup
-initializeOpenAI();
-
-// Add endpoint to refresh configuration
-app.post("/refresh-config", (req, res) => {
-  try {
-    initializeOpenAI();
-    res.json({ status: "success", message: "OpenAI configuration refreshed" });
-  } catch (error) {
-    res.status(500).json({ status: "error", message: error.message });
-  }
-});
-
-// Health check endpoint
-app.get("/health", (req, res) => {
-  res.json({ status: "healthy", timestamp: new Date().toISOString() });
-});
-
-// Generate itinerary endpoint
 app.post("/generate", async (req, res) => {
   try {
     const { prompt } = req.body;
-
     if (!prompt) {
       return res.status(400).json({
         status: "error",
@@ -60,16 +139,45 @@ app.post("/generate", async (req, res) => {
     logger.info("Generating itinerary with prompt:", prompt);
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4",
-      messages: [{ role: "user", content: prompt }],
+      model: "gpt-4-turbo-preview",
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a travel planner that generates detailed itineraries in a structured format.",
+        },
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+      functions: [functionSchema],
+      function_call: { name: "generate_travel_plan" },
     });
 
-    logger.info("Successfully generated itinerary");
+    const functionCallArgs =
+      completion.choices[0]?.message?.function_call?.arguments;
 
+    if (!functionCallArgs) {
+      throw new Error("No content generated");
+    }
+
+    let parsedContent;
+    try {
+      parsedContent =
+        typeof functionCallArgs === "string"
+          ? JSON.parse(functionCallArgs)
+          : functionCallArgs;
+    } catch (parseError) {
+      logger.error("Failed to parse OpenAI response:", parseError);
+      throw new Error("Invalid response format from AI");
+    }
+
+    // Send the response
     res.json({
       status: "success",
       data: {
-        content: completion.choices[0].message.content,
+        content: parsedContent, // Already an object, no need to stringify
       },
     });
   } catch (error) {
@@ -78,39 +186,16 @@ app.post("/generate", async (req, res) => {
       status: "error",
       message: "Failed to generate itinerary",
       errorDetails: {
-        type: error.type,
-        code: error.code,
+        type: error.type || "PARSING_ERROR",
+        code: error.code || "INVALID_RESPONSE",
         message: error.message,
       },
     });
   }
 });
 
-// Start server
-const port = process.env.AI_SERVER_PORT || env.AI_SERVER_PORT || 8001;
-const server = app.listen(port, "0.0.0.0", () => {
-  const address = server.address();
-  console.log(
-    `[OpenAI Server] Successfully listening on ${address.address}:${address.port}`
-  );
-  logger.info(`OpenAI server running on port ${port}`);
-  console.log(`OpenAI Service listening on port ${port}`);
-});
-
-server.on("error", (error) => {
-  logger.error(
-    `[OpenAI Server] Failed to start listening on port ${port}:`,
-    error
-  );
-  console.error(
-    `[OpenAI Server] Failed to start listening on port ${port}:`,
-    error
-  );
-  process.exit(1);
-});
-
-// Handle graceful shutdown
-process.on("SIGTERM", () => {
-  logger.info("Received SIGTERM signal. Starting graceful shutdown...");
-  process.exit(0);
+// Initialize OpenAI and start server
+initializeOpenAI();
+app.listen(PORT, () => {
+  logger.info(`OpenAI server listening on port ${PORT}`);
 });

@@ -1,111 +1,167 @@
-const axios = require('axios');
-const { createServerLogger } = require('../server-logger');
-const env = require('../config/env');
+const { z } = require("zod");
+const OpenAI = require("openai");
+const { createServerLogger } = require("../server-logger");
 
-const logger = createServerLogger('AIService');
+const logger = createServerLogger("AIService");
 
-// Log whether the OpenAI API key is loaded
-logger.info('[AIService] OpenAI Key Loaded:', env.OPENAI_API_KEY ? 'Yes' : 'No');
+// Define the function schema for OpenAI
+const functionSchema = {
+  name: "generate_travel_plan",
+  description: "Generate a structured travel plan",
+  parameters: {
+    type: "object",
+    required: ["TripInfo", "Days", "LocalInfo"],
+    properties: {
+      TripInfo: {
+        type: "object",
+        required: [
+          "Title",
+          "Destination",
+          "Duration",
+          "TotalCost",
+          "Style",
+          "Nationality",
+        ],
+        properties: {
+          Title: { type: "string", description: "Title of the trip" },
+          Destination: {
+            type: "string",
+            description: "Destination city and country",
+          },
+          Duration: { type: "string", description: "Duration of the trip" },
+          TotalCost: { type: "string", description: "Estimated total cost" },
+          Style: {
+            type: "string",
+            description: "Travel style (Solo, Family, etc)",
+          },
+          Nationality: {
+            type: "string",
+            description: "Traveler's nationality",
+          },
+          Requirements: {
+            type: "array",
+            items: { type: "string" },
+            description: "Special requirements like Halal food",
+          },
+        },
+      },
+      Days: {
+        type: "array",
+        items: {
+          type: "object",
+          required: ["DayNumber", "Activities", "Transport", "DailyCost"],
+          properties: {
+            DayNumber: { type: "number" },
+            Activities: {
+              type: "object",
+              required: ["Morning", "Afternoon", "Evening"],
+              properties: {
+                Morning: {
+                  type: "object",
+                  required: ["Activity", "Description"],
+                  properties: {
+                    Activity: { type: "string" },
+                    Description: { type: "string" },
+                    Cost: { type: "string" },
+                  },
+                },
+                Afternoon: {
+                  type: "object",
+                  required: ["Activity", "Description"],
+                  properties: {
+                    Activity: { type: "string" },
+                    Description: { type: "string" },
+                    Cost: { type: "string" },
+                  },
+                },
+                Evening: {
+                  type: "object",
+                  required: ["Activity", "Description"],
+                  properties: {
+                    Activity: { type: "string" },
+                    Description: { type: "string" },
+                    Cost: { type: "string" },
+                  },
+                },
+              },
+            },
+            Transport: { type: "string" },
+            DailyCost: { type: "string" },
+          },
+        },
+      },
+      LocalInfo: {
+        type: "object",
+        required: ["Customs", "Weather", "Transport", "Health", "Visa"],
+        properties: {
+          Customs: { type: "string" },
+          Weather: { type: "string" },
+          Transport: { type: "string" },
+          Health: { type: "string" },
+          Visa: { type: "string" },
+        },
+      },
+    },
+  },
+};
 
-class AIService {
+class TravelPlanService {
+  // Get the schema for external use
+  static getFunctionSchema() {
+    return functionSchema;
+  }
+
   async generateItinerary({
     destination,
-    days,
-    budget,
-    interests = [],
-    userCountry = '',
-    travelDates = '',
-    travelStyle = '',
-    dietaryRestrictions = []
+    duration,
+    nationality,
+    requirements,
   }) {
     try {
-      const prompt = this.buildPrompt({
+      const openai = new OpenAI();
+
+      logger.info("Generating itinerary with parameters:", {
         destination,
-        days,
-        budget,
-        interests,
-        userCountry,
-        travelDates,
-        travelStyle,
-        dietaryRestrictions
+        duration,
+        nationality,
+        requirements,
       });
-      // Log the prompt before sending to AI server
-      logger.info('[AIService] Built prompt:', prompt);
-      logger.info(`Sending request to AI server at http://127.0.0.1:${env.AI_SERVER_PORT}/generate`);
-      
-      const response = await axios.post(`http://127.0.0.1:${env.AI_SERVER_PORT}/generate`, {
-        prompt
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4-turbo-preview",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a travel planner that generates detailed itineraries in a structured format.",
+          },
+          {
+            role: "user",
+            content: `Create a ${duration}-day travel plan for ${destination}. 
+                     Traveler Profile:
+                     - Nationality: ${nationality}
+                     - Special Requirements: ${requirements.join(", ")}
+                     
+                     Include detailed daily activities with descriptions and costs.`,
+          },
+        ],
+        functions: [functionSchema],
+        function_call: { name: "generate_travel_plan" },
       });
-      // Log the raw response data from AI server
-      logger.info('[AIService] Raw AI server response:', JSON.stringify(response.data, null, 2));
-      
-      return this.parseItineraryResponse(response.data);
+
+      const content = response.choices[0]?.message?.function_call?.arguments;
+      if (!content) throw new Error("No content generated");
+
+      return JSON.parse(content);
     } catch (error) {
-      logger.error('Error generating itinerary:', error);
-      // Log the error response data if available
-      logger.error('[AIService] Error response data:', error.response?.data);
+      logger.error("Error generating travel plan:", error);
       throw error;
-    }
-  }
-
-  buildPrompt({
-    destination,
-    days,
-    budget,
-    interests,
-    userCountry,
-    travelDates,
-    travelStyle,
-    dietaryRestrictions
-  }) {
-    // Format budget: prefix $ if numeric, otherwise use text value
-    const budgetText = typeof budget === 'number' ? `$${budget}` : budget;
-
-    return `Create a detailed ${days}-day travel itinerary for ${destination} with a budget of ${budgetText}.
-      ${interests.length > 0 ? `Focus on these interests: ${interests.join(', ')}.` : ''}
-      ${userCountry ? `The traveler is from ${userCountry}.` : ''}
-      ${travelDates ? `Travel dates: ${travelDates}.` : ''}
-      ${travelStyle ? `Travel style preference: ${travelStyle}.` : ''}
-      ${dietaryRestrictions.length > 0 ? `Dietary restrictions: ${dietaryRestrictions.join(', ')}.` : ''}
-      
-      Format your response as a structured JSON with the following sections:
-      1. "visaRequirements": Detailed visa information for someone from ${userCountry || 'the traveler\'s country'} visiting ${destination}, including application process, fees, and requirements
-      2. "localCustoms": Important cultural norms, etiquette, dress codes, and behaviors to be aware of
-      3. "currencyInfo": Currency details, exchange rates, tipping customs, payment methods accepted
-      4. "healthAndSafety": Vaccinations needed, health precautions, emergency numbers, safety tips
-      5. "transportation": How to get around, public transit options, recommended transportation methods
-      6. "languageBasics": Official language, common useful phrases, communication tips
-      7. "weatherInfo": Seasonal weather patterns, what to expect during the travel period
-      8. "dailyItinerary": Array of daily plans, each with morning, afternoon, and evening activities, including:
-         - timing
-         - activities
-         - estimatedCosts
-         - transportationOptions
-         - accommodationSuggestions
-         - mealRecommendations
-      
-      Make sure all the information is accurate, practical, and tailored to the traveler's specifics.`;
-  }
-
-  parseItineraryResponse(response) {
-    try {
-      const content = response.data.content;
-      const parsed = typeof content === 'string' ? JSON.parse(content) : content;
-      // If parsed is an object and has at least one expected key, return as is
-      if (parsed && (parsed.places || parsed.tips || parsed.culturalNotes || parsed.safetyTips || parsed.additionalInfo)) {
-        return parsed;
-      }
-      // Fallback: wrap as additionalInfo
-      return { additionalInfo: typeof content === 'string' ? content : JSON.stringify(content) };
-    } catch (error) {
-      logger.error('Error parsing itinerary as JSON:', error);
-      const rawContent = response?.data?.content || '';
-      return {
-        additionalInfo: rawContent,
-        parsingError: "The AI response couldn't be parsed as JSON."
-      };
     }
   }
 }
 
-module.exports = new AIService();
+// Export both the service instance and schema access method
+module.exports = {
+  travelPlanService: new TravelPlanService(),
+  getFunctionSchema: TravelPlanService.getFunctionSchema,
+};
