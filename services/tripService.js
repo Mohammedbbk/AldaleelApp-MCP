@@ -9,6 +9,9 @@ const logger = createServerLogger("TripService");
 // Set service-specific timeout
 const serviceTimeout = parseInt(process.env.CULTURE_REQUEST_TIMEOUT) || 30000;
 
+// Increase timeout for long-running AI operations
+const AI_REQUEST_TIMEOUT = 120000; // 2 minutes
+
 router.use((req, res, next) => {
   req.setTimeout(serviceTimeout);
   logger.info(`[TripService] ${req.method} ${req.originalUrl}`, {
@@ -76,14 +79,27 @@ router.get("/", async (req, res) => {
 });
 
 router.post("/generate", async (req, res) => {
+  // Increase server timeout
+  req.setTimeout(120000);
+
   try {
     logger.info("[TripService] Received generation request:", req.body);
+
+    // Set headers to maintain connection
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("Keep-Alive", "timeout=120");
 
     // Call OpenAI server
     const response = await axios.post(
       `http://localhost:${env.AI_SERVER_PORT}/generate`,
       {
         prompt: buildTripPrompt(req.body),
+      },
+      {
+        timeout: 110000,
+        headers: {
+          Connection: "keep-alive",
+        },
       }
     );
 
@@ -91,7 +107,9 @@ router.post("/generate", async (req, res) => {
 
     return res.json({
       status: "success",
-      data: response.data,
+      data: {
+        content: response.data,
+      },
     });
   } catch (error) {
     logger.error("[TripService] Generation error:", error);

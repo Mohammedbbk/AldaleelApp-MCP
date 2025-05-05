@@ -31,11 +31,16 @@ const app = express();
 // CORS configuration
 app.use(
   cors({
-    origin: ["http://localhost:19006", "http://10.0.2.2:19006"],
-    methods: ["GET", "POST"],
+    origin: true,
+    methods: ["GET", "POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Accept", "Authorization"],
     credentials: true,
+    maxAge: 86400, // 24 hours
   })
 );
+
+// Add OPTIONS handler for preflight requests
+app.options("*", cors());
 
 // Middleware
 app.use(express.json());

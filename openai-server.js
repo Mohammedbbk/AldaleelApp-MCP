@@ -114,7 +114,14 @@ const functionSchema = {
 };
 
 // Middleware
-app.use(cors());
+app.use(
+  cors({
+    origin: true,
+    methods: ["GET", "POST"],
+    allowedHeaders: ["Content-Type", "Accept"],
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 let openai;
