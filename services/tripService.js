@@ -105,6 +105,38 @@ router.post("/generate", async (req, res) => {
 
     logger.info("[TripService] Successfully generated content");
 
+    // ---------------------------------------------------------------
+    // Store the generated trip in the Backend (Supabase)
+    // ---------------------------------------------------------------
+    try {
+      // Compose payload combining the original request and AI itinerary
+      const backendPayload = {
+        user_id: req.body.user_id || req.body.userCountry || req.body.nationality || "temp_user_id",
+        destination: req.body.destination,
+        destinationCountry: req.body.destinationCountry,
+        latitude: req.body.latitude,
+        longitude: req.body.longitude,
+        displayDestination: req.body.displayDestination,
+        year: req.body.year,
+        month: req.body.month,
+        travelerStyle: req.body.travelerStyle,
+        budgetLevel: req.body.budgetLevel,
+        duration: req.body.duration,
+        nationality: req.body.nationality,
+        interests: req.body.interests,
+        tripPace: req.body.tripPace,
+        specialRequirements: req.body.specialRequirements,
+        transportationPreference: req.body.transportationPreference,
+        itinerary: response.data, // the AI generated content
+      };
+
+      const backendRes = await axios.post("http://localhost:5000/api/trips", backendPayload, { timeout: 15000 });
+      logger.info(`Trip stored in backend. Status: ${backendRes.status}`);
+    } catch (storeErr) {
+      logger.error("[TripService] Failed to store trip in backend:", storeErr.message);
+    }
+    // ---------------------------------------------------------------
+
     return res.json({
       status: "success",
       data: {

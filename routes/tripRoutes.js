@@ -11,6 +11,7 @@ const {
   cacheResponse, 
   debounceRequests 
 } = require('../middleware/responseValidation');
+const axios = require('axios');
 
 const router = express.Router();
 const logger = createServerLogger('TripRoutes');
@@ -72,9 +73,29 @@ router.post('/generate',
       // Add itinerary to the data object going to the DB service
       dbTripData.itinerary = itinerary; // Add the generated itinerary
 
-      // Call tripService with the object using snake_case keys
-      await tripService.createTrip(dbTripData); // Pass dbTripData now
-      logger.info('Trip saved successfully');
+      // Store trip in Backend (Supabase) -------------------------------------------------
+      try {
+        const backendPayload = {
+          ...dbTripData,
+          user_id: req.body.user_id,
+          destinationCountry: req.body.destinationCountry || dbTripData.user_country || dbTripData.nationality,
+          nationality: req.body.nationality || dbTripData.user_country,
+          duration: req.body.duration || dbTripData.days,
+          month: req.body.month,
+          year: req.body.year,
+          travelerStyle: req.body.travelerStyle || req.body.travelStyle || dbTripData.travel_style,
+          budgetLevel: req.body.budgetLevel || dbTripData.budget,
+          specialRequirements: req.body.specialRequirements || dbTripData.dietary_restrictions,
+          transportationPreference: req.body.transportationPreference,
+          displayDestination: req.body.displayDestination,
+        };
+
+        const backendResponse = await axios.post('http://localhost:5000/api/trips', backendPayload, { timeout: 15000 });
+        logger.info('Trip posted to backend. Response status:', backendResponse.status);
+      } catch (backendErr) {
+        logger.error('Failed to store trip in backend:', backendErr.message);
+      }
+      // -------------------------------------------------------------------------------
 
       res.json(createSuccessResponse({
         tripId: dbTripData.id, // Use the generated ID
