@@ -24,50 +24,19 @@ router.use((req, res, next) => {
 
 router.get("/", async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const filter = req.query.filter || "all";
-    const sort = req.query.sort || "date";
-    const search = req.query.search || "";
-
-    // Mock data
-    const trips = [
-      {
-        id: 1,
-        destination: "Paris",
-        startDate: "2024-06-01",
-        endDate: "2024-06-07",
-        status: "upcoming",
-        userCountry: "USA",
-      },
-      {
-        id: 2,
-        destination: "Tokyo",
-        startDate: "2024-07-01",
-        endDate: "2024-07-14",
-        status: "upcoming",
-        userCountry: "UK",
-      },
-    ];
-
-    // Set response headers
-    res.set({
-      "Content-Type": "application/json",
-      "Cache-Control": "no-cache",
-      "X-Content-Type-Options": "nosniff",
-    });
-
-    return res.status(200).json({
-      status: "success",
-      data: {
-        trips: trips,
-      },
-      pagination: {
-        currentPage: page,
-        totalPages: Math.ceil(trips.length / limit),
-        totalItems: trips.length,
+    // Instead of mock data, request from the backend
+    const response = await axios.get("http://localhost:5000/api/trips", {
+      params: {
+        page: req.query.page || 1,
+        limit: req.query.limit || 10,
+        filter: req.query.filter || "all",
+        sort: req.query.sort || "date",
+        search: req.query.search || "",
+        user_id: req.query.user_id,
       },
     });
+
+    return res.status(200).json(response.data);
   } catch (error) {
     logger.error("Failed to fetch trips:", error);
     return res.status(500).json({
@@ -111,7 +80,11 @@ router.post("/generate", async (req, res) => {
     try {
       // Compose payload combining the original request and AI itinerary
       const backendPayload = {
-        user_id: req.body.user_id || req.body.userCountry || req.body.nationality || "temp_user_id",
+        user_id:
+          req.body.user_id ||
+          req.body.userCountry ||
+          req.body.nationality ||
+          "temp_user_id",
         destination: req.body.destination,
         destinationCountry: req.body.destinationCountry,
         latitude: req.body.latitude,
@@ -130,10 +103,17 @@ router.post("/generate", async (req, res) => {
         itinerary: response.data, // the AI generated content
       };
 
-      const backendRes = await axios.post("http://localhost:5000/api/trips", backendPayload, { timeout: 15000 });
+      const backendRes = await axios.post(
+        "http://localhost:5000/api/trips",
+        backendPayload,
+        { timeout: 15000 }
+      );
       logger.info(`Trip stored in backend. Status: ${backendRes.status}`);
     } catch (storeErr) {
-      logger.error("[TripService] Failed to store trip in backend:", storeErr.message);
+      logger.error(
+        "[TripService] Failed to store trip in backend:",
+        storeErr.message
+      );
     }
     // ---------------------------------------------------------------
 
