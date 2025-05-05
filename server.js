@@ -4,6 +4,7 @@ const path = require("path");
 const fs = require("fs");
 const dotenv = require("dotenv");
 const { createServerLogger, createRequestLogger } = require("./server-logger");
+const fetch = require("node-fetch");
 
 // Load environment variables
 dotenv.config();
@@ -59,6 +60,37 @@ app.use((req, res, next) => {
 // Routes
 const tripRoutes = require("./services/tripService");
 app.use("/api/trips", tripRoutes);
+
+// Add proxy route for chat functionality
+app.post("/api/chat", async (req, res) => {
+  try {
+    logger.info("Received chat request, proxying to brave-llm-server");
+    
+    // Forward the request to the brave-llm server
+    const braveUrl = process.env.BRAVE_LLM_URL || "http://localhost:8010";
+    const response = await fetch(`${braveUrl}/api/chat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(req.body),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Brave LLM server responded with status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    logger.info("Successfully proxied chat response from brave-llm-server");
+    res.json(data);
+  } catch (error) {
+    logger.error("Error proxying chat request:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to process chat request",
+    });
+  }
+});
 
 // Error handler
 app.use((err, req, res, next) => {

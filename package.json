@@ -30,6 +30,7 @@
     "joi": "^17.13.3",
     "js-yaml": "^4.1.0",
     "mapbox-gl": "^3.1.2",
+    "node-fetch": "^2.7.0",
     "openai": "^4.0.0",
     "rate-limit-redis": "^4.2.0",
     "swagger-jsdoc": "^6.2.8",
