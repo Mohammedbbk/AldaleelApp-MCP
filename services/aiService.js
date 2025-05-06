@@ -4,7 +4,6 @@ const { createServerLogger } = require("../server-logger");
 
 const logger = createServerLogger("AIService");
 
-// Define the function schema for OpenAI
 const functionSchema = {
   name: "generate_travel_plan",
   description: "Generate a structured travel plan",
@@ -106,7 +105,6 @@ const functionSchema = {
 };
 
 class TravelPlanService {
-  // Get the schema for external use
   static getFunctionSchema() {
     return functionSchema;
   }
@@ -125,27 +123,22 @@ class TravelPlanService {
         requirements,
       });
 
-      // Step 1: Get base itinerary from AI service
       const baseItinerary = await this.getBaseItinerary({
         destination, duration, nationality, requirements
       });
 
-      // Step 2: Enhance with travel/location data
       const enhancedWithLocationData = await this.enhanceWithLocationData(
         baseItinerary, destination
       );
 
-      // Step 3: Add local events information
       const withEvents = await this.addLocalEvents(
         enhancedWithLocationData, destination, duration
       );
 
-      // Step 4: Add visa requirements
       const withVisaInfo = await this.addVisaRequirements(
         withEvents, destination, nationality
       );
 
-      // Step 5: Add cultural insights
       const finalPlan = await this.addCulturalInsights(
         withVisaInfo, destination
       );
@@ -181,7 +174,6 @@ class TravelPlanService {
       return response.data;
     } catch (error) {
       logger.error("Error enhancing with location data:", error);
-      // Return original itinerary if enhancement fails
       return itinerary;
     }
   }
@@ -207,7 +199,6 @@ class TravelPlanService {
         nationality
       });
       
-      // Update the LocalInfo.Visa field in the itinerary
       if (response.data && response.data.visaInfo) {
         itinerary.LocalInfo.Visa = response.data.visaInfo;
       }
@@ -225,7 +216,6 @@ class TravelPlanService {
         destination
       });
       
-      // Update the LocalInfo.Customs field in the itinerary
       if (response.data && response.data.culturalInsights) {
         itinerary.LocalInfo.Customs = response.data.culturalInsights;
       }

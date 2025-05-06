@@ -1,15 +1,12 @@
-// brave-llm-server.js
 const express = require('express');
 const cors = require('cors');
 const { OpenAI } = require('openai');
 const { createServerLogger } = require('./server-logger');
 const env = require('./config/env');
 
-// Initialize express app
 const app = express();
 const logger = createServerLogger('BraveLLM');
 
-// Initialize OpenAI Client
 if (!env.OPENAI_API_KEY) {
     logger.error('FATAL ERROR: OPENAI_API_KEY environment variable is not set.');
     process.exit(1); 
@@ -18,16 +15,13 @@ const openai = new OpenAI({
     apiKey: env.OPENAI_API_KEY,
 });
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 
-// Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'healthy', service: 'brave-llm-service' });
 });
 
-// API chat endpoint that Visa and Culture services call
 app.post('/api/chat', async (req, res) => {
   logger.info(`Received request for /api/chat`, { 
     body: req.body,
@@ -37,9 +31,8 @@ app.post('/api/chat', async (req, res) => {
   });
   
   try {
-    const { messages, context } = req.body; // Expecting { messages: [{ role: 'user', content: '...' }], context: '...' }
+    const { messages, context } = req.body; 
 
-    // Validate input
     if (!messages || !Array.isArray(messages) || messages.length === 0 || !messages[0].content) {
       logger.warn('Invalid request: messages array with content is required.', { body: req.body });
       return res.status(400).json({
@@ -48,11 +41,9 @@ app.post('/api/chat', async (req, res) => {
       });
     }
 
-    // Extract the primary user prompt
     const userPrompt = messages[0].content;
     logger.info(`Processing LLM request with prompt starting: "${userPrompt.substring(0, 100)}..."`);
 
-    // Define system prompt for destination discovery
     const systemPrompt = {
       role: "system",
       content: `You are Al-Daleel AI, a friendly, enthusiastic, and knowledgeable travel assistant.
@@ -64,12 +55,10 @@ ${context && context !== 'general' ? `The user has previously indicated preferen
 `
     };
 
-    // Determine if this is a conversation continuation
     const isFollowUp = context && context !== 'general';
     logger.info(`Conversation context: ${isFollowUp ? 'Follow-up message with context' : 'New conversation'}`);
 
-    // --- Call OpenAI API ---
-    const modelToUse = "gpt-3.5-turbo"; // Or choose another model like "gpt-4"
+    const modelToUse = "gpt-3.5-turbo"; 
     logger.info(`Calling OpenAI chat completions with model: ${modelToUse}`, {
       systemPrompt: systemPrompt.content.substring(0, 100) + '...',
       userPrompt: userPrompt.substring(0, 100) + '...'
@@ -79,7 +68,7 @@ ${context && context !== 'general' ? `The user has previously indicated preferen
         messages: [
           systemPrompt,
           { role: "user", content: userPrompt }
-        ], // Pass system prompt and user prompt
+        ], 
         model: modelToUse,
     });
 
@@ -98,7 +87,6 @@ ${context && context !== 'general' ? `The user has previously indicated preferen
       previewResponse: generatedContent.substring(0, 100) + '...'
     });
 
-    // Extract travel preferences from the conversation for future context
     let updatedContext = context || 'general';
     if (userPrompt.toLowerCase().includes('budget') || 
         userPrompt.toLowerCase().includes('cheap') || 
@@ -110,7 +98,6 @@ ${context && context !== 'general' ? `The user has previously indicated preferen
         userPrompt.toLowerCase().includes('sea')) {
       updatedContext = `${updatedContext}, beach destinations`;
     }
-    // Add more context extraction as needed
 
     const response = {
         choices: [
@@ -135,26 +122,22 @@ ${context && context !== 'general' ? `The user has previously indicated preferen
     logger.error('Error processing LLM request via OpenAI:', {
         message: error.message,
         stack: error.stack,
-        // Avoid logging potentially sensitive request body on error if needed
-        // requestBody: req.body
+        requestBody: req.body
     });
     res.status(500).json({
       status: 'error',
       message: 'Failed to process LLM request via OpenAI',
-      // Optionally include non-sensitive error details
-      // details: error.message
+      details: error.message
     });
   }
 });
 
-// Start server
 const PORT = process.env.BRAVE_LLM_PORT || 8010;
 app.listen(PORT, '0.0.0.0', () => {
   logger.info(`Brave LLM Service started successfully on port ${PORT}`);
   console.log(`Brave LLM Service running on port ${PORT}`);
 });
 
-// Handle graceful shutdown
 process.on('SIGTERM', () => {
   logger.info('Received SIGTERM signal. Starting graceful shutdown...');
   process.exit(0);

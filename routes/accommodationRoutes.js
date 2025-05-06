@@ -5,7 +5,6 @@ const accommodationController = require('../controllers/accommodationController'
 const router = express.Router();
 const logger = createServerLogger('AccommodationRoutes');
 
-// Search accommodations
 router.post('/search', async (req, res) => {
   try {
     const result = await accommodationController.searchAccommodations(req.body);
@@ -25,7 +24,6 @@ router.post('/search', async (req, res) => {
   }
 });
 
-// Get accommodation details by listing ID
 router.get('/:listingId', async (req, res) => {
   try {
     const { listingId } = req.params;

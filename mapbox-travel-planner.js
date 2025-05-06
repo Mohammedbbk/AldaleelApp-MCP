@@ -8,19 +8,17 @@ const { createServerLogger, createRequestLogger } = require('./server-logger');
 dotenv.config();
 const app = express();
 const logger = createServerLogger('TravelPlanner');
-const SERVICE_NAME = 'Mapbox Travel Planner'; // Define service name
+const SERVICE_NAME = 'Mapbox Travel Planner'; 
 
 app.use(cors());
 app.use(express.json());
-// Removed: app.use(createRequestLogger(logger)); // Remove if request logger is not needed or causing issues
 
-// Make sure the MAPBOX_ACCESS_TOKEN is properly set in your .env file
 let baseClient = null;
 let directionsService = null;
 
 try {
   logger.info(`[${SERVICE_NAME}] Initializing Mapbox client...`);
-  const mapboxApiKey = process.env.MAPBOX_API_KEY; // Use consistent env var name
+  const mapboxApiKey = process.env.MAPBOX_API_KEY; 
   if (!mapboxApiKey) {
     logger.warn(`[${SERVICE_NAME}] MAPBOX_API_KEY environment variable not set.`);
     throw new Error('Mapbox API key is missing.');
@@ -32,8 +30,6 @@ try {
   
 } catch (error) {
   logger.error(`[${SERVICE_NAME} Error] Failed to initialize Mapbox client:`, error);
-  // Depending on severity, you might want to prevent the server from starting
-  // or handle this state gracefully in the route handlers.
   console.error(`[${SERVICE_NAME} Error] Initialization failed: ${error.message}`); 
 }
 
@@ -82,7 +78,6 @@ app.post('/enhance-trip', async (req, res) => {
       });
     }
     
-    // Simple enhancement: Add location coordinates to each day's activities
     const enhancedItinerary = {...itinerary};
     
     if (enhancedItinerary.Days && Array.isArray(enhancedItinerary.Days)) {
@@ -120,13 +115,13 @@ app.get('/health', (req, res) => {
 });
 
 const PORT = process.env.TRAVEL_PLANNER_PORT || 8004;
-const server = app.listen(PORT, '0.0.0.0', () => { // Listen on all interfaces
+const server = app.listen(PORT, '0.0.0.0', () => { 
   logger.info(`[${SERVICE_NAME}] Server listening successfully on port ${PORT}`);
-  console.log(`[${SERVICE_NAME}] Server listening successfully on port ${PORT}`); // Explicit console log for startup
+  console.log(`[${SERVICE_NAME}] Server listening successfully on port ${PORT}`); 
 });
 
 server.on('error', (error) => {
   logger.error(`[${SERVICE_NAME} Server Error] Failed to start server:`, error);
   console.error(`[${SERVICE_NAME} Server Error] Failed to start server: ${error.code} - ${error.message}`);
-  process.exit(1); // Exit if the server fails to start (e.g., port conflict)
+  process.exit(1); 
 });

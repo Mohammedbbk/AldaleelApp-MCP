@@ -6,11 +6,10 @@ const dotenv = require("dotenv");
 const { createServerLogger, createRequestLogger } = require("./server-logger");
 const fetch = require("node-fetch");
 
-// Load environment variables
 dotenv.config();
 
 const env = {
-  PORT: process.env.PORT || 8000, // Changed from 5000 to 8000
+  PORT: process.env.PORT || 8000, 
   NODE_ENV: process.env.NODE_ENV || "development",
   HOST: process.env.HOST || "127.0.0.1",
   WAIT_FOR_SERVERS: process.env.WAIT_FOR_SERVERS === "true",
@@ -19,35 +18,29 @@ const env = {
     parseInt(process.env.CULTURE_REQUEST_TIMEOUT) || 30000,
 };
 
-// Create logs directory
 const logDir = path.join(__dirname, "logs");
 if (!fs.existsSync(logDir)) {
   fs.mkdirSync(logDir, { recursive: true });
 }
 
-// Initialize logger and Express app
 const logger = createServerLogger("Server");
 const app = express();
 
-// CORS configuration
 app.use(
   cors({
     origin: true,
     methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Accept", "Authorization"],
     credentials: true,
-    maxAge: 86400, // 24 hours
+    maxAge: 86400, 
   })
 );
 
-// Add OPTIONS handler for preflight requests
 app.options("*", cors());
 
-// Middleware
 app.use(express.json());
 app.use(createRequestLogger(logger));
 
-// Request timeout middleware
 app.use((req, res, next) => {
   const timeout = req.path.includes("visa")
     ? env.VISA_REQUEST_TIMEOUT
@@ -57,16 +50,13 @@ app.use((req, res, next) => {
   next();
 });
 
-// Routes
 const tripRoutes = require("./services/tripService");
 app.use("/api/trips", tripRoutes);
 
-// Add proxy route for chat functionality
 app.post("/api/chat", async (req, res) => {
   try {
     logger.info("Received chat request, proxying to brave-llm-server");
     
-    // Forward the request to the brave-llm server
     const braveUrl = process.env.BRAVE_LLM_URL || "http://localhost:8010";
     const response = await fetch(`${braveUrl}/api/chat`, {
       method: "POST",
@@ -92,7 +82,6 @@ app.post("/api/chat", async (req, res) => {
   }
 });
 
-// Error handler
 app.use((err, req, res, next) => {
   logger.error("Unhandled error:", err);
   res.status(500).json({
@@ -101,7 +90,6 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start server
 const server = app.listen(env.PORT, env.HOST, () => {
   console.log(`Server starting...`);
   console.log(`Environment: ${env.NODE_ENV}`);
@@ -116,7 +104,6 @@ const server = app.listen(env.PORT, env.HOST, () => {
   });
 });
 
-// Error handling
 server.on("error", (error) => {
   console.error("Server failed to start:", error);
   logger.error("Server failed to start:", error);

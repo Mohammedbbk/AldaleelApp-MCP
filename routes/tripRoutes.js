@@ -25,53 +25,45 @@ router.post('/generate',
       const {
         destination,
         days,
-        budget, // Assuming budget comes as string/number matching schema 'text' type after mapping?
+        budget, 
         interests = [],
-        userCountry = '', // Frontend might send userCountry directly now
-        nationality = '', // Or it might send nationality
+        userCountry = '', 
+        nationality = '', 
         travelDates = '',
-        travelStyle = '', // Frontend likely sends travelStyle
-        travelerStyle = '', // Or maybe travelerStyle
-        dietaryRestrictions = [] // Frontend sends dietaryRestrictions
+        travelStyle = '', 
+        travelerStyle = '', 
+        dietaryRestrictions = [] 
       } = req.body;
 
-      // Map frontend names to exact DB column names (snake_case)
       const dbTripData = {
-        id: uuidv4(), // Generate new ID
+        id: uuidv4(), 
         destination: destination,
         days: days,
-        budget: budget, // Use the budget value directly (schema is text)
+        budget: budget, 
         interests: interests,
-        // Map JS camelCase to DB snake_case
-        user_country: userCountry || nationality, // Use whichever is provided
+        user_country: userCountry || nationality, 
         travel_dates: travelDates,
-        travel_style: travelStyle || travelerStyle, // Use whichever is provided
-        dietary_restrictions: dietaryRestrictions, // <<-- Use snake_case key
-        // We get itinerary after AI call
-        // createdAt is handled by default value in DB schema
+        travel_style: travelStyle || travelerStyle, 
+        dietary_restrictions: dietaryRestrictions, 
       };
 
       logger.info('Processing travel plan request (mapped to DB keys):', dbTripData);
 
       const startTime = Date.now();
 
-      // Call AI service (pass relevant data needed for prompt)
       const itinerary = await aiService.generateItinerary({
-        // Pass data needed by AI service prompt construction
         destination,
         days,
         budget,
         interests,
-        userCountry: dbTripData.user_country, // Pass consistent value
+        userCountry: dbTripData.user_country, 
         travelDates,
-        travelStyle: dbTripData.travel_style, // Pass consistent value
+        travelStyle: dbTripData.travel_style, 
         dietaryRestrictions
       });
 
-      // Add itinerary to the data object going to the DB service
-      dbTripData.itinerary = itinerary; // Add the generated itinerary
+      dbTripData.itinerary = itinerary; 
 
-      // Store trip in Backend (Supabase) -------------------------------------------------
       try {
         const backendPayload = {
           ...dbTripData,
@@ -93,17 +85,15 @@ router.post('/generate',
       } catch (backendErr) {
         logger.error('Failed to store trip in backend:', backendErr.message);
       }
-      // -------------------------------------------------------------------------------
 
       res.json(createSuccessResponse({
-        tripId: dbTripData.id, // Use the generated ID
-        itinerary // Return the generated itinerary
+        tripId: dbTripData.id, 
+        itinerary 
       }, {
         processingTime: Date.now() - startTime,
         source: 'ai_service'
       }));
     } catch (error) {
-      // ... existing error handling ...
       logger.error('[TripRoutes] AI service error response data:', error.response?.data);
       logger.error('Error generating travel plan:', error);
       logger.error('Error stack:', error.stack);
@@ -126,9 +116,5 @@ router.post('/generate',
     }
 });
 
-// ... rest of tripRoutes.js ...
-
 module.exports = router;
 
-// Move TripService to its own file
-// The TripService code should be in services/tripService.js

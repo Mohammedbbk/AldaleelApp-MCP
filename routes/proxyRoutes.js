@@ -5,7 +5,6 @@ const proxyController = require('../controllers/proxyController');
 const router = express.Router();
 const logger = createServerLogger('ProxyRoutes');
 
-// Proxy visa requirements request
 router.post('/visa-requirements', async (req, res) => {
   try {
     const result = await proxyController.proxyVisaRequest(req.body);
@@ -25,7 +24,6 @@ router.post('/visa-requirements', async (req, res) => {
   }
 });
 
-// Test Airbnb connection
 router.get('/test-airbnb-connection', async (req, res) => {
   try {
     const result = await proxyController.testAirbnbConnection();
@@ -44,7 +42,6 @@ router.get('/test-airbnb-connection', async (req, res) => {
   }
 });
 
-// Proxy culture insights request
 router.post('/culture-insights', async (req, res) => {
   try {
     const result = await proxyController.proxyCultureInsightsRequest(req.body);

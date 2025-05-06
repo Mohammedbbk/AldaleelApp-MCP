@@ -1,13 +1,11 @@
 const Joi = require('joi');
 
-// Base response schema
 const baseResponseSchema = Joi.object({
   status: Joi.string().valid('success', 'error').required(),
   timestamp: Joi.string().isoDate().required(),
   requestId: Joi.string().uuid().required()
 });
 
-// Error response schema
 const errorResponseSchema = baseResponseSchema.keys({
   status: Joi.string().valid('error').required(),
   code: Joi.string().required(),
@@ -17,14 +15,12 @@ const errorResponseSchema = baseResponseSchema.keys({
   retryAfter: Joi.number().integer().min(0)
 });
 
-// Success response metadata schema
 const successMetadataSchema = Joi.object({
   processingTime: Joi.number().integer().min(0),
   source: Joi.string(),
   cached: Joi.boolean()
 });
 
-// Chat message schema
 const chatMessageSchema = Joi.object({
   role: Joi.string().valid('user', 'assistant', 'system').required(),
   content: Joi.string().required(),
@@ -37,14 +33,12 @@ const chatMessageSchema = Joi.object({
   })
 });
 
-// Chat conversation schema
 const chatConversationSchema = Joi.object({
   id: Joi.string().uuid().required(),
   context: Joi.string(),
   summary: Joi.string()
 });
 
-// Chat response schema
 const chatResponseSchema = baseResponseSchema.keys({
   status: Joi.string().valid('success').required(),
   data: Joi.object({
@@ -54,7 +48,6 @@ const chatResponseSchema = baseResponseSchema.keys({
   metadata: successMetadataSchema
 });
 
-// Trip activity schema
 const tripActivitySchema = Joi.object({
   id: Joi.string().required(),
   name: Joi.string().required(),
@@ -67,7 +60,6 @@ const tripActivitySchema = Joi.object({
   recommendations: Joi.array().items(Joi.string())
 });
 
-// Trip meal schema
 const tripMealSchema = Joi.object({
   type: Joi.string().valid('breakfast', 'lunch', 'dinner', 'snack').required(),
   venue: Joi.string(),
@@ -76,7 +68,6 @@ const tripMealSchema = Joi.object({
   dietaryOptions: Joi.array().items(Joi.string())
 });
 
-// Trip accommodation schema
 const tripAccommodationSchema = Joi.object({
   name: Joi.string().required(),
   type: Joi.string().required(),
@@ -87,7 +78,6 @@ const tripAccommodationSchema = Joi.object({
   amenities: Joi.array().items(Joi.string())
 });
 
-// Trip itinerary day schema
 const tripItineraryDaySchema = Joi.object({
   day: Joi.number().integer().min(1).required(),
   date: Joi.string(),
@@ -97,7 +87,6 @@ const tripItineraryDaySchema = Joi.object({
   notes: Joi.array().items(Joi.string())
 });
 
-// Trip plan schema
 const tripPlanSchema = Joi.object({
   id: Joi.string().uuid().required(),
   destination: Joi.string().required(),
@@ -113,7 +102,6 @@ const tripPlanSchema = Joi.object({
   updatedAt: Joi.string().isoDate()
 });
 
-// Trip plan response schema
 const tripPlanResponseSchema = baseResponseSchema.keys({
   status: Joi.string().valid('success').required(),
   data: Joi.object({
@@ -123,7 +111,6 @@ const tripPlanResponseSchema = baseResponseSchema.keys({
   metadata: successMetadataSchema
 });
 
-// Trip list response schema
 const tripListResponseSchema = baseResponseSchema.keys({
   status: Joi.string().valid('success').required(),
   data: Joi.object({

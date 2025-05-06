@@ -1,14 +1,11 @@
-// Response status types
 export type ResponseStatus = 'success' | 'error';
 
-// Base response interface
 export interface BaseResponse {
   status: ResponseStatus;
   timestamp: string;
   requestId: string;
 }
 
-// Error response interface
 export interface ErrorResponse extends BaseResponse {
   status: 'error';
   code: string;
@@ -18,7 +15,6 @@ export interface ErrorResponse extends BaseResponse {
   retryAfter?: number;
 }
 
-// Success response interface
 export interface SuccessResponse<T> extends BaseResponse {
   status: 'success';
   data: T;
@@ -29,7 +25,6 @@ export interface SuccessResponse<T> extends BaseResponse {
   };
 }
 
-// AI Chat specific types
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
@@ -50,7 +45,6 @@ export interface ChatResponse {
   };
 }
 
-// Trip planning specific types
 export interface TripPlan {
   id: string;
   destination: string;

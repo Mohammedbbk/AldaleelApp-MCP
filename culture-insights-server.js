@@ -1,30 +1,22 @@
-// culture-insights-server.js
 
-require('dotenv').config(); // Load .env file variables
+require('dotenv').config(); 
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
-const { createServerLogger } = require('./server-logger'); // Adjust path if needed
-// const { createRequestLogger } = require('./request-logger'); // Removed - Caused crash
+const { createServerLogger } = require('./server-logger'); 
 
-// --- Configuration ---
-const PORT = process.env.CULTURE_INSIGHTS_PORT || 8008; // Use a new default port
-// Point to the same LLM service as the visa server
+const PORT = process.env.CULTURE_INSIGHTS_PORT || 8008; 
 const LLM_SERVICE_URL = process.env.BRAVE_MCP_URL || `http://localhost:${process.env.BRAVE_PORT || 8010}`;
 const LLM_API_ENDPOINT = process.env.BRAVE_API_ENDPOINT || '/api/chat';
-const REQUEST_TIMEOUT = parseInt(process.env.CULTURE_REQUEST_TIMEOUT) || 30000; // 30 seconds timeout
+const REQUEST_TIMEOUT = parseInt(process.env.CULTURE_REQUEST_TIMEOUT) || 30000; 
 
-// --- Initialization ---
 const app = express();
 
 const logger = createServerLogger('CultureInsights');
 
-// --- Middleware ---
-app.use(cors()); // Enable CORS for all routes
-app.use(express.json()); // Parse incoming JSON requests
-// app.use(createRequestLogger(logger)); // Removed - Caused crash
+app.use(cors()); 
+app.use(express.json()); 
 
-// --- Helper: Call LLM Service ---
 async function getCultureInsightsFromLLM(nationality, destination) {
   const targetUrl = `${LLM_SERVICE_URL}${LLM_API_ENDPOINT}`;
   logger.info(`Querying LLM at ${targetUrl} for culture insights: ${nationality} -> ${destination}`);
@@ -45,21 +37,18 @@ async function getCultureInsightsFromLLM(nationality, destination) {
   };
 
   try {
-    // --- ADDED DEBUG LOG (Modified) --- 
     logger.info(`[getCultureInsightsFromLLM] >>> Preparing to POST to ${targetUrl}`, { payload: JSON.stringify(payload) });
     const response = await axios.post(
       targetUrl,
       payload,
       { timeout: REQUEST_TIMEOUT }
     );
-    // --- ADDED SUCCESS LOG ---
     logger.info(`[getCultureInsightsFromLLM] <<< Successfully received response from ${targetUrl}`, { status: response.status });
 
-    // Adapt this based on the ACTUAL response structure of your LLM endpoint
-    const content = response.data?.choices?.[0]?.message?.content // OpenAI-like structure
-                 || response.data?.message?.content          // Simple message structure
-                 || response.data?.content                     // Direct content
-                 || JSON.stringify(response.data);          // Fallback: Stringify the whole data
+    const content = response.data?.choices?.[0]?.message?.content 
+                 || response.data?.message?.content          
+                 || response.data?.content                     
+                 || JSON.stringify(response.data);          
 
     if (!content || content === '{}' || content === '""') {
         logger.warn(`LLM returned empty or invalid content for culture insights: ${nationality} -> ${destination}`);
@@ -71,10 +60,8 @@ async function getCultureInsightsFromLLM(nationality, destination) {
   } catch (error) {
     const status = error.response?.status;
     const errorData = error.response?.data;
-    const errorCode = error.code; // Get error code
-    // --- ADDED DEBUG LOG (Modified) ---
+    const errorCode = error.code; 
     logger.error(`[getCultureInsightsFromLLM] !!! Error calling LLM (${targetUrl}): ${error.message}`, { status, errorCode, errorData: JSON.stringify(errorData) });
-    // Throw a more specific error based on the code
     if (errorCode === 'ECONNREFUSED') {
        throw new Error(`LLM service connection refused at ${targetUrl}`);
     } else if (errorCode === 'ETIMEDOUT') {
@@ -85,19 +72,14 @@ async function getCultureInsightsFromLLM(nationality, destination) {
   }
 }
 
-// --- API Routes ---
-
-// Health Check
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', service: 'culture-insights-service' });
 });
 
-// Get Culture Insights
 app.post('/cultural-insights', async (req, res, next) => {
   logger.info('>>> POST /cultural-insights HANDLER REACHED <<<', { body: req.body });
   const { nationality, destination } = req.body;
 
-  // Validation
   if (!nationality || !destination || typeof nationality !== 'string' || typeof destination !== 'string') {
     logger.warn('Invalid request to /cultural-insights: Missing or invalid params', { body: req.body });
     return res.status(400).json({
@@ -107,14 +89,11 @@ app.post('/cultural-insights', async (req, res, next) => {
   }
 
   try {
-    // --- ADDED BEFORE LOG --- 
     logger.info(`[POST /cultural-insights] ---> Calling getCultureInsightsFromLLM for ${nationality} -> ${destination}`);
     const cultureContent = await getCultureInsightsFromLLM(nationality, destination);
-    // --- ADDED AFTER LOG ---
     logger.info(`[POST /cultural-insights] <--- Received content from LLM. Length: ${cultureContent?.length || 0}`);
 
     function parseCultureInsights(rawContent) {
-      // Similar parsing logic as visa (adapt fields as needed)
       const etiquette = /Etiquette:\s*(.+)/i.exec(rawContent)?.[1] || '';
       const dressCode = /Dress Code:\s*(.+)/i.exec(rawContent)?.[1] || '';
       const communication = /Communication:\s*(.+)/i.exec(rawContent)?.[1] || '';
@@ -131,25 +110,21 @@ app.post('/cultural-insights', async (req, res, next) => {
     }
 
     const structured = parseCultureInsights(cultureContent);
-    // --- ADDED RESPONSE LOG ---
     logger.info('[POST /cultural-insights] Sending success response.');
     res.json({
       status: 'success',
       culturalInsights: structured.content || structured
     });
   } catch (error) {
-    // --- ADDED ERROR LOG ---
     logger.error(`[POST /cultural-insights] !!! Error caught in route handler: ${error.message}`);
-    // Error should already be logged in detail by the helper function
-    res.status(502).json({ // 502 Bad Gateway suggests upstream failure
+    res.status(502).json({
       status: 'error',
       message: 'Failed to retrieve culture insights from the information service.',
-      details: error.message // Pass cleaner error message
+      details: error.message 
     });
   }
 });
 
-// --- Server Start ---
 app.listen(PORT, '0.0.0.0', () => {
   logger.info(`Culture Insights Server started successfully on port ${PORT}`);
   logger.info(`Configured to query LLM at: ${LLM_SERVICE_URL}${LLM_API_ENDPOINT}`);

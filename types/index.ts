@@ -9,8 +9,8 @@ export interface Trip {
   destination: string;
   status: TripStatus;
   duration: string;
-  startDate: string; // ISO date string
-  endDate: string; // ISO date string
+  startDate: string; 
+  endDate: string; 
   thumbnail?: string;
 }
 

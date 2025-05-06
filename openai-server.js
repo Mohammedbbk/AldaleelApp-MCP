@@ -5,14 +5,12 @@ const dotenv = require("dotenv");
 const { createServerLogger } = require("./server-logger");
 const env = require("./config/env");
 
-// Force reload environment variables
 dotenv.config({ override: true });
 
 const app = express();
 const logger = createServerLogger("OpenAI");
 const PORT = process.env.AI_SERVER_PORT || 8001;
 
-// Define the function schema inline to ensure it's available
 const functionSchema = {
   name: "generate_travel_plan",
   description: "Generate a structured travel plan",
@@ -112,8 +110,7 @@ const functionSchema = {
     },
   },
 };
-
-// Middleware
+  
 app.use(
   cors({
     origin: true,
@@ -206,11 +203,10 @@ app.post("/generate", async (req, res) => {
       throw new Error("Invalid response format from AI");
     }
 
-    // Send the response
     res.json({
       status: "success",
       data: {
-        content: parsedContent, // Already an object, no need to stringify
+        content: parsedContent, 
       },
     });
   } catch (error) {
@@ -227,7 +223,6 @@ app.post("/generate", async (req, res) => {
   }
 });
 
-// Initialize OpenAI and start server
 initializeOpenAI();
 app.listen(PORT, () => {
   logger.info(`OpenAI server listening on port ${PORT}`);

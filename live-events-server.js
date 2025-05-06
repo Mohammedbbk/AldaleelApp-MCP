@@ -62,7 +62,6 @@ app.post('/events', async (req, res) => {
       });
     }
 
-    // Calculate endDate from startDate and duration
     let formattedStartDate, formattedEndDate;
     
     if (startDate) {
@@ -73,7 +72,6 @@ app.post('/events', async (req, res) => {
       formattedStartDate = startDateObj.toISOString().split('T')[0] + 'T00:00:00Z';
       formattedEndDate = endDateObj.toISOString().split('T')[0] + 'T23:59:59Z';
     } else {
-      // Default to current date if not provided
       const startDateObj = new Date();
       const endDateObj = new Date();
       endDateObj.setDate(startDateObj.getDate() + (parseInt(duration) || 7));
@@ -84,7 +82,6 @@ app.post('/events', async (req, res) => {
     
     const eventsData = await getEvents(destination, formattedStartDate, formattedEndDate);
     
-    // Format the response to match what tripService expects
     const formattedEvents = [];
     
     if (eventsData._embedded && eventsData._embedded.events) {

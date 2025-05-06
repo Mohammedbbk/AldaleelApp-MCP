@@ -6,7 +6,6 @@ const logger = createServerLogger('AccommodationController');
 const AIRBNB_PORT = env.AIRBNB_PORT || 8007;
 const AIRBNB_BASE_URL = `http://localhost:${AIRBNB_PORT}`;
 
-// Search accommodations through Airbnb MCP server
 async function searchAccommodations(searchParams) {
   try {
     logger.info('Searching accommodations with params:', searchParams);
@@ -28,7 +27,6 @@ async function searchAccommodations(searchParams) {
   }
 }
 
-// Get accommodation details by listing ID
 async function getAccommodationDetails(listingId) {
   try {
     logger.info('Fetching accommodation details for listing:', listingId);

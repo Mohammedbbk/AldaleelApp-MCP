@@ -3,10 +3,8 @@ const supabase = require('../config/supabaseClient');
 
 const logger = createServerLogger('Helpers');
 
-// Sanitize input to prevent XSS and other injection attacks
 function sanitizeInput(input) {
   if (typeof input === 'string') {
-    // Remove HTML tags and special characters
     return input
       .replace(/<[^>]*>/g, '')
       .replace(/[\u00A0-\u9999<>\&]/gim, (i) => `&#${i.charCodeAt(0)};`)
@@ -23,7 +21,6 @@ function sanitizeInput(input) {
   return input;
 }
 
-// Check Supabase connection status
 async function checkSupabaseConnection() {
   try {
     logger.info('Checking Supabase connection...');

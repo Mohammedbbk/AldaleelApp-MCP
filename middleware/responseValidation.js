@@ -1,6 +1,5 @@
 const { v4: uuidv4 } = require("uuid");
 
-// Utility to create standardized success response
 function createSuccessResponse(data, metadata = {}) {
   return {
     status: "success",
@@ -15,7 +14,6 @@ function createSuccessResponse(data, metadata = {}) {
   };
 }
 
-// Utility to create standardized error response
 function createErrorResponse(code, message, details, recoverySteps) {
   return {
     status: "error",
@@ -28,13 +26,11 @@ function createErrorResponse(code, message, details, recoverySteps) {
   };
 }
 
-// Response validation middleware
 function validateResponse(schema) {
   return async (req, res, next) => {
     const originalJson = res.json;
     res.json = function (body) {
       try {
-        // Validate response against schema
         const validationResult = schema.validate(body);
         if (validationResult.error) {
           console.error("Response validation failed:", validationResult.error);
@@ -70,8 +66,7 @@ function validateResponse(schema) {
     next();
   };
 }
-
-// Error handling middleware
+        
 function errorHandler(err, req, res, next) {
   console.error("Error caught in middleware:", err);
 
@@ -89,7 +84,6 @@ function errorHandler(err, req, res, next) {
   res.status(err.status || 500).json(errorResponse);
 }
 
-// Response caching middleware
 function cacheResponse(duration) {
   const cache = new Map();
 
@@ -122,7 +116,6 @@ function cacheResponse(duration) {
   };
 }
 
-// Request debouncing middleware
 function debounceRequests(window = 1000) {
   const requests = new Map();
 
