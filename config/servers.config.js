@@ -1,15 +1,14 @@
-const path = require('path'); // Make sure path is required
-const env = require('./env'); // Make sure env is required
+const path = require('path');
+const env = require('./env');
 
 const servers = [
   {
-    name: 'AI Itinerary Generator', // Uses openai-server.js
+    name: 'AI Itinerary Generator',
     command: `node ${path.join(__dirname, '..', 'openai-server.js')}`,
-    port: env.AI_SERVER_PORT || 8001, // Default to 8001
+    port: env.AI_SERVER_PORT || 8001,
     env: {
-      PORT: env.AI_SERVER_PORT || 8001, // Pass port if needed by server
-      OPENAI_API_KEY: env.OPENAI_API_KEY // Pass API key
-      // Add other env vars if openai-server.js needs them
+      PORT: env.AI_SERVER_PORT || 8001,
+      OPENAI_API_KEY: env.OPENAI_API_KEY
     },
     healthCheckPath: '/health',
     healthCheckTimeout: 30000,
@@ -18,16 +17,14 @@ const servers = [
   {
     name: 'Travel Planner MCP Server',
     command: `node ${path.join(__dirname, '..', 'mapbox-travel-planner.js')}`,
-    port: env.TRAVEL_PLANNER_PORT, // Default: 8002
+    port: env.TRAVEL_PLANNER_PORT,
     env: { MAPBOX_API_KEY: env.MAPBOX_API_KEY }
-    // Add health check if available
   },
   {
     name: 'Live Events MCP Server',
     command: `node ${path.join(__dirname, '..', 'live-events-server.js')}`,
-    port: env.LIVE_EVENTS_PORT, // Default: 8005
+    port: env.LIVE_EVENTS_PORT,
     env: { TICKETMASTER_API_KEY: env.TICKETMASTER_API_KEY }
-    // Add health check if available
   },
   {
     name: 'TripAdvisor MCP Server',
@@ -41,12 +38,11 @@ const servers = [
     },
     healthCheckTimeout: 30000,
     retries: 3
-    // Add health check if available
   },
   {
     name: 'Airbnb MCP Server',
     command: `npx -y @openbnb/mcp-server-airbnb --port ${env.AIRBNB_PORT || 8007} --host 0.0.0.0`,
-    port: env.AIRBNB_PORT || 8007, // Uses port 8007
+    port: env.AIRBNB_PORT || 8007,
     env: {
       IGNORE_ROBOTS_TXT: process.env.IGNORE_ROBOTS_TXT || 'false',
       PORT: env.AIRBNB_PORT || 8007,
@@ -56,44 +52,38 @@ const servers = [
     healthCheckPath: '/health',
     healthCheckTimeout: 60000,
   },
-  // --- CORRECTED VISA ENTRY ---
   {
     name: 'Visa Requirements Server',
     command: `node ${path.join(__dirname, '..', 'visa-requirements-server.js')}`,
-    port: env.VISA_REQUIREMENTS_PORT || 8009, // Uses unique port (e.g., 8009)
-    remoteUrl: env.VISA_SERVICE_URL, // For when deployed as a separate service
+    port: env.VISA_REQUIREMENTS_PORT || 8009,
+    remoteUrl: env.VISA_SERVICE_URL,
     env: {
-      // Pass necessary environment variables from the main gateway's env
-      PORT: env.VISA_REQUIREMENTS_PORT || 8009, // Pass its own port
+      PORT: env.VISA_REQUIREMENTS_PORT || 8009,
       BRAVE_MCP_URL: env.BRAVE_MCP_URL,
       BRAVE_API_ENDPOINT: env.BRAVE_API_ENDPOINT,
-      VISA_REQUIREMENTS_PORT: env.VISA_REQUIREMENTS_PORT || 8009, // Pass port again if needed internally
+      VISA_REQUIREMENTS_PORT: env.VISA_REQUIREMENTS_PORT || 8009,
       VISA_REQUEST_TIMEOUT: env.VISA_REQUEST_TIMEOUT
-      // Add BRAVE_PORT or BRAVE_API_KEY if visa-requirements-server needs them
     },
-    healthCheckPath: '/health', // Assuming it has one
-    healthCheckTimeout: 90000, // Increased timeout significantly
+    healthCheckPath: '/health',
+    healthCheckTimeout: 90000,
     retries: 3
   },
-  // --- CORRECTED CULTURE ENTRY ---
   {
     name: 'Culture Insights Server',
     command: `node ${path.join(__dirname, '..', 'culture-insights-server.js')}`,
-    port: env.CULTURE_INSIGHTS_PORT || 8008, // Uses port 8008
-    remoteUrl: env.CULTURE_SERVICE_URL, // For when deployed as a separate service
+    port: env.CULTURE_INSIGHTS_PORT || 8008,
+    remoteUrl: env.CULTURE_SERVICE_URL,
     env: {
-      PORT: env.CULTURE_INSIGHTS_PORT || 8008, // Pass its own port
+      PORT: env.CULTURE_INSIGHTS_PORT || 8008,
       BRAVE_MCP_URL: env.BRAVE_MCP_URL,
       BRAVE_API_ENDPOINT: env.BRAVE_API_ENDPOINT,
-      CULTURE_INSIGHTS_PORT: env.CULTURE_INSIGHTS_PORT || 8008, // Pass port again if needed internally
+      CULTURE_INSIGHTS_PORT: env.CULTURE_INSIGHTS_PORT || 8008,
       CULTURE_REQUEST_TIMEOUT: env.CULTURE_REQUEST_TIMEOUT
-       // Add BRAVE_PORT or BRAVE_API_KEY if culture-insights-server needs them
     },
-    healthCheckPath: '/health', // Assuming it has one
-    healthCheckTimeout: 90000, // Increased timeout significantly
+    healthCheckPath: '/health',
+    healthCheckTimeout: 90000,
     retries: 5
   },
-  // Add Brave/LLM Service configuration
   {
     name: 'Brave LLM Service',
     command: `node ${path.join(__dirname, '..', 'brave-llm-server.js')}`,
