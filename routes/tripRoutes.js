@@ -16,14 +16,12 @@ const axios = require('axios');
 const router = express.Router();
 const logger = createServerLogger('TripRoutes');
 
-// Generate travel plan
 router.post('/generate',
   validateTravelPlanInput,
   debounceRequests(2000),
   async (req, res) => {
     logger.info('[TripRoutes] /generate Raw request body:', JSON.stringify(req.body, null, 2));
     try {
-      // Destructure using expected frontend names (camelCase)
       const {
         destination,
         days,

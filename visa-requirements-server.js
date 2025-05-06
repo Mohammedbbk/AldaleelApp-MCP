@@ -11,7 +11,7 @@ const { createServerLogger } = require('./server-logger'); // Adjust path if nee
 const PORT = process.env.VISA_REQUIREMENTS_PORT || 8009;
 // IMPORTANT: Default URL corrected - Ensure BRAVE_MCP_URL points to the ACTUAL Brave/LLM service URL/Port
 // Do NOT default to the gateway port (8000) unless the gateway specifically handles /api/chat for Brave.
-const BRAVE_MCP_URL = process.env.BRAVE_MCP_URL || `http://localhost:${process.env.BRAVE_PORT || 3002}`; // Example: Using BRAVE_PORT, defaulting to 8005
+const BRAVE_MCP_URL = process.env.BRAVE_MCP_URL || `http://localhost:${process.env.BRAVE_PORT || 8010}`; // Use port 8010 for Brave LLM
 const BRAVE_API_ENDPOINT = process.env.BRAVE_API_ENDPOINT || '/api/chat'; // Make endpoint configurable if needed
 const REQUEST_TIMEOUT = parseInt(process.env.VISA_REQUEST_TIMEOUT) || 25000; // 25 seconds timeout
 
@@ -34,7 +34,7 @@ async function getVisaInfoFromLLM(nationality, destination) {
     messages: [
       {
         role: 'user',
-        content: `What are the visa requirements for a ${nationality} citizen traveling to ${destination}? Please provide detailed information about visa types, required documents, application process, fees, validity, length of stay, and any specific warnings or important notes.`
+        content: `What are the visa requirements for a ${nationality} citizen traveling to ${destination === 'SA' ? 'Saudi Arabia' : destination}? Please provide detailed information about visa types, required documents, application process, fees, validity, length of stay, and any specific warnings or important notes.`
       }
     ]
   };

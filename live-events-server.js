@@ -54,17 +54,60 @@ app.post('/events', async (req, res) => {
       });
     }
     
-    const { location, startDate, endDate } = req.body;
+    const { destination, startDate, duration } = req.body;
     
-    if (!location || !startDate || !endDate) {
+    if (!destination) {
       return res.status(400).json({
-        error: 'Missing required parameters: location, startDate, and endDate'
+        error: 'Missing required parameter: destination'
       });
     }
 
-    const events = await getEvents(location, startDate, endDate);
-    res.json(events);
+    // Calculate endDate from startDate and duration
+    let formattedStartDate, formattedEndDate;
+    
+    if (startDate) {
+      const startDateObj = new Date(startDate);
+      const endDateObj = new Date(startDateObj);
+      endDateObj.setDate(startDateObj.getDate() + (parseInt(duration) || 7));
+      
+      formattedStartDate = startDateObj.toISOString().split('T')[0] + 'T00:00:00Z';
+      formattedEndDate = endDateObj.toISOString().split('T')[0] + 'T23:59:59Z';
+    } else {
+      // Default to current date if not provided
+      const startDateObj = new Date();
+      const endDateObj = new Date();
+      endDateObj.setDate(startDateObj.getDate() + (parseInt(duration) || 7));
+      
+      formattedStartDate = startDateObj.toISOString().split('T')[0] + 'T00:00:00Z';
+      formattedEndDate = endDateObj.toISOString().split('T')[0] + 'T23:59:59Z';
+    }
+    
+    const eventsData = await getEvents(destination, formattedStartDate, formattedEndDate);
+    
+    // Format the response to match what tripService expects
+    const formattedEvents = [];
+    
+    if (eventsData._embedded && eventsData._embedded.events) {
+      eventsData._embedded.events.forEach(event => {
+        formattedEvents.push({
+          name: event.name,
+          date: event.dates?.start?.localDate || 'TBD',
+          time: event.dates?.start?.localTime || 'TBD',
+          venue: event._embedded?.venues?.[0]?.name || 'TBD',
+          type: event.classifications?.[0]?.segment?.name || 'Event',
+          url: event.url
+        });
+      });
+    }
+    
+    logger.info(`Found ${formattedEvents.length} events for ${destination}`);
+    
+    res.json({
+      status: 'success',
+      events: formattedEvents
+    });
   } catch (error) {
+    logger.error('Error fetching events:', error);
     res.status(500).json({
       error: 'Failed to fetch events',
       details: error.message

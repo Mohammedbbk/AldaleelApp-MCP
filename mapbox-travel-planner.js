@@ -65,6 +65,56 @@ app.post('/directions', async (req, res) => {
   }
 });
 
+app.post('/enhance-trip', async (req, res) => {
+  try {
+    if (!baseClient || !directionsService) {
+      logger.error(`[${SERVICE_NAME} Error] Service not available (Initialization failed?).`);
+      return res.status(503).json({
+        error: 'Mapbox service unavailable'
+      });
+    }
+    
+    const { itinerary, destination, latitude, longitude } = req.body;
+    
+    if (!itinerary || !destination) {
+      return res.status(400).json({
+        error: 'Missing required parameters: itinerary and destination'
+      });
+    }
+    
+    // Simple enhancement: Add location coordinates to each day's activities
+    const enhancedItinerary = {...itinerary};
+    
+    if (enhancedItinerary.Days && Array.isArray(enhancedItinerary.Days)) {
+      enhancedItinerary.Days = enhancedItinerary.Days.map(day => {
+        return {
+          ...day,
+          MapInfo: {
+            coordinates: {
+              latitude,
+              longitude
+            },
+            locationName: destination
+          }
+        };
+      });
+    }
+    
+    logger.info(`Enhanced itinerary for ${destination} with Mapbox data`);
+    
+    res.json({
+      status: 'success',
+      enhancedItinerary
+    });
+  } catch (error) {
+    logger.error('Error enhancing trip:', error);
+    res.status(500).json({
+      error: 'Failed to enhance trip',
+      details: error.message
+    });
+  }
+});
+
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });

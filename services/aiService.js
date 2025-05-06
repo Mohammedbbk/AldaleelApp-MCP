@@ -1,5 +1,5 @@
 const { z } = require("zod");
-const OpenAI = require("openai");
+const axios = require("axios");
 const { createServerLogger } = require("../server-logger");
 
 const logger = createServerLogger("AIService");
@@ -118,49 +118,126 @@ class TravelPlanService {
     requirements,
   }) {
     try {
-      const openai = new OpenAI();
-
-      logger.info("Generating itinerary with parameters:", {
+      logger.info("Generating enhanced itinerary with MCP servers:", {
         destination,
         duration,
         nationality,
         requirements,
       });
 
-      const response = await openai.chat.completions.create({
-        model: "gpt-4-turbo-preview",
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are a travel planner that generates detailed itineraries in a structured format.",
-          },
-          {
-            role: "user",
-            content: `Create a ${duration}-day travel plan for ${destination}. 
-                     Traveler Profile:
-                     - Nationality: ${nationality}
-                     - Special Requirements: ${requirements.join(", ")}
-                     
-                     Include detailed daily activities with descriptions and costs.`,
-          },
-        ],
-        functions: [functionSchema],
-        function_call: { name: "generate_travel_plan" },
+      // Step 1: Get base itinerary from AI service
+      const baseItinerary = await this.getBaseItinerary({
+        destination, duration, nationality, requirements
       });
 
-      const content = response.choices[0]?.message?.function_call?.arguments;
-      if (!content) throw new Error("No content generated");
+      // Step 2: Enhance with travel/location data
+      const enhancedWithLocationData = await this.enhanceWithLocationData(
+        baseItinerary, destination
+      );
 
-      return JSON.parse(content);
+      // Step 3: Add local events information
+      const withEvents = await this.addLocalEvents(
+        enhancedWithLocationData, destination, duration
+      );
+
+      // Step 4: Add visa requirements
+      const withVisaInfo = await this.addVisaRequirements(
+        withEvents, destination, nationality
+      );
+
+      // Step 5: Add cultural insights
+      const finalPlan = await this.addCulturalInsights(
+        withVisaInfo, destination
+      );
+
+      return finalPlan;
     } catch (error) {
-      logger.error("Error generating travel plan:", error);
+      logger.error("Error generating enhanced travel plan:", error);
       throw error;
+    }
+  }
+
+  async getBaseItinerary({ destination, duration, nationality, requirements }) {
+    try {
+      const response = await axios.post('http://localhost:8001/generate-itinerary', {
+        destination,
+        duration,
+        nationality,
+        requirements
+      });
+      return response.data;
+    } catch (error) {
+      logger.error("Error getting base itinerary from AI server:", error);
+      throw error;
+    }
+  }
+
+  async enhanceWithLocationData(itinerary, destination) {
+    try {
+      const response = await axios.post('http://localhost:8002/enhance-locations', {
+        itinerary,
+        destination
+      });
+      return response.data;
+    } catch (error) {
+      logger.error("Error enhancing with location data:", error);
+      // Return original itinerary if enhancement fails
+      return itinerary;
+    }
+  }
+
+  async addLocalEvents(itinerary, destination, duration) {
+    try {
+      const response = await axios.post('http://localhost:8005/find-events', {
+        itinerary,
+        destination,
+        duration
+      });
+      return response.data;
+    } catch (error) {
+      logger.error("Error adding local events:", error);
+      return itinerary;
+    }
+  }
+
+  async addVisaRequirements(itinerary, destination, nationality) {
+    try {
+      const response = await axios.post('http://localhost:8009/visa-requirements', {
+        destination,
+        nationality
+      });
+      
+      // Update the LocalInfo.Visa field in the itinerary
+      if (response.data && response.data.visaInfo) {
+        itinerary.LocalInfo.Visa = response.data.visaInfo;
+      }
+      
+      return itinerary;
+    } catch (error) {
+      logger.error("Error adding visa requirements:", error);
+      return itinerary;
+    }
+  }
+
+  async addCulturalInsights(itinerary, destination) {
+    try {
+      const response = await axios.post('http://localhost:8008/cultural-insights', {
+        destination
+      });
+      
+      // Update the LocalInfo.Customs field in the itinerary
+      if (response.data && response.data.culturalInsights) {
+        itinerary.LocalInfo.Customs = response.data.culturalInsights;
+      }
+      
+      return itinerary;
+    } catch (error) {
+      logger.error("Error adding cultural insights:", error);
+      return itinerary;
     }
   }
 }
 
-// Export both the service instance and schema access method
 module.exports = {
   travelPlanService: new TravelPlanService(),
   getFunctionSchema: TravelPlanService.getFunctionSchema,

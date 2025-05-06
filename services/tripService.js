@@ -6,11 +6,9 @@ const env = require("../config/env");
 
 const logger = createServerLogger("TripService");
 
-// Set service-specific timeout
 const serviceTimeout = parseInt(process.env.CULTURE_REQUEST_TIMEOUT) || 30000;
 
-// Increase timeout for long-running AI operations
-const AI_REQUEST_TIMEOUT = 120000; // 2 minutes
+const AI_REQUEST_TIMEOUT = 120000; 
 
 router.use((req, res, next) => {
   req.setTimeout(serviceTimeout);
@@ -24,7 +22,6 @@ router.use((req, res, next) => {
 
 router.get("/", async (req, res) => {
   try {
-    // Instead of mock data, request from the backend
     const response = await axios.get("http://localhost:5000/api/trips", {
       params: {
         page: req.query.page || 1,
@@ -48,18 +45,17 @@ router.get("/", async (req, res) => {
 });
 
 router.post("/generate", async (req, res) => {
-  // Increase server timeout
   req.setTimeout(120000);
 
   try {
     logger.info("[TripService] Received generation request:", req.body);
 
-    // Set headers to maintain connection
     res.setHeader("Connection", "keep-alive");
     res.setHeader("Keep-Alive", "timeout=120");
 
-    // Call OpenAI server
-    const response = await axios.post(
+    // Step 1: Get the base itinerary from OpenAI
+    logger.info("[TripService] Step 1: Requesting base itinerary from OpenAI");
+    const openaiResponse = await axios.post(
       `http://localhost:${env.AI_SERVER_PORT}/generate`,
       {
         prompt: buildTripPrompt(req.body),
@@ -72,13 +68,127 @@ router.post("/generate", async (req, res) => {
       }
     );
 
-    logger.info("[TripService] Successfully generated content");
+    if (!openaiResponse.data || !openaiResponse.data.data || !openaiResponse.data.data.content) {
+      throw new Error("Invalid response from OpenAI server");
+    }
 
-    // ---------------------------------------------------------------
-    // Store the generated trip in the Backend (Supabase)
-    // ---------------------------------------------------------------
+    let enhancedPlan = openaiResponse.data.data.content;
+    logger.info("[TripService] Base itinerary generated successfully");
+
+    // Step 2: Enhance with Mapbox travel data
     try {
-      // Compose payload combining the original request and AI itinerary
+      logger.info("[TripService] Step 2: Enhancing with Mapbox travel data");
+      const mapboxResponse = await axios.post(
+        `http://localhost:${env.TRAVEL_PLANNER_PORT || 8004}/enhance-trip`,
+        {
+          itinerary: enhancedPlan,
+          destination: req.body.destination,
+          latitude: req.body.latitude,
+          longitude: req.body.longitude
+        },
+        { timeout: 30000 }
+      );
+      
+      if (mapboxResponse.data && mapboxResponse.data.enhancedItinerary) {
+        enhancedPlan = mapboxResponse.data.enhancedItinerary;
+        logger.info("[TripService] Successfully enhanced with travel data");
+      }
+    } catch (mapboxError) {
+      logger.error("[TripService] Failed to enhance with travel data:", mapboxError.message);
+      // Continue with original plan if enhancement fails
+    }
+
+    // Step 3: Add local events information
+    try {
+      logger.info("[TripService] Step 3: Adding local events");
+      const eventsResponse = await axios.post(
+        `http://localhost:${env.LIVE_EVENTS_PORT || 8005}/events`,
+        {
+          destination: req.body.destination,
+          startDate: req.body.year + "-" + req.body.month,
+          duration: req.body.duration
+        },
+        { timeout: 30000 }
+      );
+      
+      if (eventsResponse.data && eventsResponse.data.events) {
+        // Add events to the appropriate days in the itinerary
+        eventsResponse.data.events.forEach(event => {
+          const dayIndex = determineDayForEvent(event, enhancedPlan.Days);
+          if (dayIndex >= 0 && dayIndex < enhancedPlan.Days.length) {
+            // Add as a note or additional activity in the evening
+            if (!enhancedPlan.Days[dayIndex].Notes) {
+              enhancedPlan.Days[dayIndex].Notes = [];
+            }
+            enhancedPlan.Days[dayIndex].Notes.push(`Event: ${event.name} at ${event.venue}. Time: ${event.time}`);
+          }
+        });
+        logger.info("[TripService] Successfully added local events");
+      }
+    } catch (eventsError) {
+      logger.error("[TripService] Failed to add local events:", eventsError.message);
+      // Continue without events if this fails
+    }
+
+    // Step 4: Enhance visa requirements
+    try {
+      logger.info("[TripService] Step 4: Enhancing visa requirements");
+      const visaResponse = await axios.post(
+        `http://localhost:${env.VISA_REQUIREMENTS_PORT || 8009}/visa-requirements`,
+        {
+          nationality: req.body.nationality,
+          destination: req.body.destinationCountry || req.body.destination
+        },
+        { timeout: 30000 }
+      );
+      
+      if (visaResponse.data && visaResponse.data.visaRequirements) {
+        // Replace or enhance the visa information in LocalInfo
+        if (typeof visaResponse.data.visaRequirements === 'object') {
+          if (visaResponse.data.visaRequirements.content) {
+            enhancedPlan.LocalInfo.Visa = visaResponse.data.visaRequirements.content;
+          } else {
+            // Format structured visa info
+            const visa = visaResponse.data.visaRequirements;
+            enhancedPlan.LocalInfo.Visa = `Type: ${visa.type}\nProcessing Time: ${visa.processingTime}\n` +
+              `Required Documents: ${(visa.requiredDocuments || []).join(', ')}\n` +
+              `Notes: ${visa.notes}`;
+          }
+        } else {
+          enhancedPlan.LocalInfo.Visa = visaResponse.data.visaRequirements;
+        }
+        logger.info("[TripService] Successfully enhanced visa requirements");
+      }
+    } catch (visaError) {
+      logger.error("[TripService] Failed to enhance visa requirements:", visaError.message);
+      // Continue with original visa info if enhancement fails
+    }
+
+    // Step 5: Enhance cultural insights
+    try {
+      logger.info("[TripService] Step 5: Enhancing cultural insights");
+      const cultureResponse = await axios.post(
+        `http://localhost:${env.CULTURE_INSIGHTS_PORT || 8008}/cultural-insights`,
+        {
+          destination: req.body.destination,
+          nationality: req.body.nationality
+        },
+        { timeout: 30000 }
+      );
+      
+      if (cultureResponse.data && cultureResponse.data.culturalInsights) {
+        // Replace or enhance the cultural information in LocalInfo
+        enhancedPlan.LocalInfo.Customs = cultureResponse.data.culturalInsights;
+        logger.info("[TripService] Successfully enhanced cultural insights");
+      }
+    } catch (cultureError) {
+      logger.error("[TripService] Failed to enhance cultural insights:", cultureError.message);
+      // Continue with original culture info if enhancement fails
+    }
+
+    logger.info("[TripService] Successfully enhanced trip plan with all available MCP services");
+
+    try {
       const backendPayload = {
         user_id:
           req.body.user_id ||
@@ -100,7 +210,10 @@ router.post("/generate", async (req, res) => {
         tripPace: req.body.tripPace,
         specialRequirements: req.body.specialRequirements,
         transportationPreference: req.body.transportationPreference,
-        itinerary: response.data, // the AI generated content
+        itinerary: {
+          status: "success",
+          data: { content: enhancedPlan }
+        }, // Use the enhanced plan
       };
 
       const backendRes = await axios.post(
@@ -115,12 +228,11 @@ router.post("/generate", async (req, res) => {
         storeErr.message
       );
     }
-    // ---------------------------------------------------------------
 
     return res.json({
       status: "success",
       data: {
-        content: response.data,
+        content: enhancedPlan,
       },
     });
   } catch (error) {
@@ -132,6 +244,14 @@ router.post("/generate", async (req, res) => {
     });
   }
 });
+
+// Helper function to determine which day to add an event to
+function determineDayForEvent(event, days) {
+  // Simple implementation - just distribute events among days
+  // A more sophisticated approach would check event date against trip dates
+  const eventIndex = Math.floor(Math.random() * days.length);
+  return eventIndex;
+}
 
 function buildTripPrompt(tripData) {
   const {
