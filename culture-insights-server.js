@@ -1,4 +1,3 @@
-
 require('dotenv').config(); 
 const express = require('express');
 const cors = require('cors');
@@ -94,19 +93,55 @@ app.post('/cultural-insights', async (req, res, next) => {
     logger.info(`[POST /cultural-insights] <--- Received content from LLM. Length: ${cultureContent?.length || 0}`);
 
     function parseCultureInsights(rawContent) {
-      const etiquette = /Etiquette:\s*(.+)/i.exec(rawContent)?.[1] || '';
-      const dressCode = /Dress Code:\s*(.+)/i.exec(rawContent)?.[1] || '';
-      const communication = /Communication:\s*(.+)/i.exec(rawContent)?.[1] || '';
-      const customs = /Customs & Traditions:\s*([\s\S]*?)(?:\n[A-Z][a-z]+:|$)/i.exec(rawContent);
-      const keyCustoms = customs
-          ? customs[1].split('\n').map(line => line.replace(/^- /, '').trim()).filter(Boolean)
-          : [];
-      const notes = /Notes:\s*([\s\S]*)/i.exec(rawContent)?.[1] || '';
-
-      if (etiquette || dressCode || communication || keyCustoms.length > 0 || notes) {
-          return { etiquette, dressCode, communication, keyCustoms, notes };
+      const insights = {};
+      let successfullyParsedSomething = false;
+    
+      // Define sections: key is what frontend expects, 
+      // promptKeyword is the main term in the LLM prompt's section title.
+      const sectionDefinitions = [
+        { key: "etiquette", promptKeyword: "Greetings & Etiquette" },
+        { key: "communication", promptKeyword: "Communication" },
+        { key: "socialNorms", promptKeyword: "Social Norms" },
+        { key: "foodAndDining", promptKeyword: "Food & Dining" },
+        { key: "keyPhrases", promptKeyword: "Key Phrases" },
+        { key: "notes", promptKeyword: "Important Note" }
+      ];
+    
+      // Ensure all expected keys are initialized so they appear in the final object
+      sectionDefinitions.forEach(def => {
+        insights[def.key] = ""; 
+      });
+    
+      for (const def of sectionDefinitions) {
+        // Same regex pattern logic as before
+        const nextSectionPattern = sectionDefinitions
+          .map(s => s.promptKeyword.replace(/[.*+?^${}()|[\]\\]/g, '\\\\$&'))
+          .join('|');
+    
+        const regex = new RegExp(
+          `(?:\\d+\\.\\s*)?(?:\\*\\*)?${def.promptKeyword.replace(/[.*+?^${}()|[\]\\]/g, '\\\\$&')}(?:\\*\\*)?:\\s*([\\s\\S]*?)(?=\\n\\s*(?:\\d+\\.\\s*)?(?:\\*\\*)?(?:${nextSectionPattern})(?:\\*\\*)?:|$)`,
+          "i"
+        );
+    
+        const match = regex.exec(rawContent);
+        if (match && match[1] && match[1].trim()) {
+          insights[def.key] = match[1].trim();
+          successfullyParsedSomething = true;
+        }
       }
-      return { content: rawContent };
+    
+      if (successfullyParsedSomething) {
+        // Also provide the customs property which is expected by the UI
+        if (!insights.customs) {
+          // If no customs property exists, use the etiquette content as fallback
+          // This ensures compatibility with UI code that looks for data.customs
+          insights.customs = insights.etiquette || Object.values(insights).find(value => value) || "";
+        }
+        return insights;
+      }
+    
+      logger.warn(`[parseCultureInsights] Failed to parse specific cultural insight sections. Raw content preview: ${rawContent.substring(0, 200)}`);
+      return { content: rawContent.trim() }; // Fallback to raw content
     }
 
     const structured = parseCultureInsights(cultureContent);

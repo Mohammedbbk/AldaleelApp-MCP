@@ -28,19 +28,36 @@ try {
 
 async function getEvents(location, startDate, endDate) {
   try {
-    const response = await axios.get(`${TICKETMASTER_API_URL}/events.json`, {
-      params: {
-        apikey: TICKETMASTER_API_KEY,
-        city: location,
-        startDateTime: startDate,
-        endDateTime: endDate,
-        size: 20
-      }
-    });
+    const params = {
+      apikey: TICKETMASTER_API_KEY,
+      city: location,
+      startDateTime: startDate, // Expected format YYYY-MM-DDTHH:mm:ssZ
+      endDateTime: endDate,   // Expected format YYYY-MM-DDTHH:mm:ssZ
+      size: 20 // Default size, can be made configurable
+    };
+
+    const requestUrl = `${TICKETMASTER_API_URL}/events.json`;
+    logger.info(`[${SERVICE_NAME}] Preparing to call Ticketmaster API. URL: ${requestUrl}, Params: ${JSON.stringify(params)}`);
+
+    const response = await axios.get(requestUrl, { params });
+
+    // Log a snippet of the raw response to see what Ticketmaster returned
+    if (response.data && response.data._embedded && response.data._embedded.events) {
+      logger.info(`[${SERVICE_NAME}] Ticketmaster returned ${response.data._embedded.events.length} events.`);
+    } else if (response.data && response.data.page) {
+      logger.info(`[${SERVICE_NAME}] Ticketmaster returned 0 events. Page info: ${JSON.stringify(response.data.page)}`);
+    } else {
+      logger.warn(`[${SERVICE_NAME}] Ticketmaster response structure unexpected or no events found. Response data: ${JSON.stringify(response.data)}`);
+    }
 
     return response.data;
   } catch (error) {
-    logger.error('Error fetching events:', error);
+    logger.error(`[${SERVICE_NAME}] Error fetching events from Ticketmaster: ${error.message}`, {
+      url: error.config?.url,
+      params: error.config?.params,
+      status: error.response?.status,
+      data: error.response?.data
+    });
     throw error;
   }
 }
@@ -54,7 +71,9 @@ app.post('/events', async (req, res) => {
       });
     }
     
-    const { destination, startDate, duration } = req.body;
+    // Expect destination, startDate (YYYY-MM-DD), endDate (YYYY-MM-DD)
+    // Keep duration for fallback compatibility
+    const { destination, startDate, endDate, duration } = req.body;
     
     if (!destination) {
       return res.status(400).json({
@@ -62,25 +81,63 @@ app.post('/events', async (req, res) => {
       });
     }
 
-    let formattedStartDate, formattedEndDate;
+    let queryStartDateTime, queryEndDateTime;
     
-    if (startDate) {
-      const startDateObj = new Date(startDate);
+    if (startDate && endDate) {
+      // Primary path: startDate and endDate are provided as "YYYY-MM-DD"
+      queryStartDateTime = startDate + 'T00:00:00Z';
+      queryEndDateTime = endDate + 'T23:59:59Z';
+      logger.info(`[${SERVICE_NAME}] Using provided startDate: ${startDate} and endDate: ${endDate}`);
+    } else if (startDate && duration) {
+      // Fallback: startDate (potentially "YYYY-MM") and duration provided
+      logger.warn(`[${SERVICE_NAME}] endDate not provided. Calculating from startDate: ${startDate} and duration: ${duration} to cover 'duration' days.`);
+      let startDateObj;
+      if (startDate.length <= 7 && startDate.includes('-')) { // "YYYY-MM" format
+        const [yearStr, monthStr] = startDate.split('-');
+        startDateObj = new Date(Date.UTC(parseInt(yearStr), parseInt(monthStr) - 1, 1));
+      } else { // Assume "YYYY-MM-DD" or other Date-parsable format, ensure UTC context
+        const d = new Date(startDate); // Parse locally first to get components
+        startDateObj = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+      }
+
       const endDateObj = new Date(startDateObj);
-      endDateObj.setDate(startDateObj.getDate() + (parseInt(duration) || 7));
-      
-      formattedStartDate = startDateObj.toISOString().split('T')[0] + 'T00:00:00Z';
-      formattedEndDate = endDateObj.toISOString().split('T')[0] + 'T23:59:59Z';
+      endDateObj.setUTCDate(startDateObj.getUTCDate() + (parseInt(duration) || 7) - 1); // -1 to cover 'duration' days inclusive of start
+
+      queryStartDateTime = startDateObj.toISOString().split('T')[0] + 'T00:00:00Z';
+      queryEndDateTime = endDateObj.toISOString().split('T')[0] + 'T23:59:59Z';
+    } else if (startDate) {
+      // Fallback: Only startDate provided, use default duration (7 days)
+      logger.warn(`[${SERVICE_NAME}] endDate and duration not provided. Using startDate: ${startDate} and default 7-day event window.`);
+      let startDateObj;
+      if (startDate.length <= 7 && startDate.includes('-')) { // "YYYY-MM" format
+        const [yearStr, monthStr] = startDate.split('-');
+        startDateObj = new Date(Date.UTC(parseInt(yearStr), parseInt(monthStr) - 1, 1));
+      } else { // Assume "YYYY-MM-DD" or other Date-parsable format, ensure UTC context
+        const d = new Date(startDate);
+        startDateObj = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+      }
+      const endDateObj = new Date(startDateObj);
+      endDateObj.setUTCDate(startDateObj.getUTCDate() + 7 - 1); // Default 7 days duration, -1 for inclusive end
+
+      queryStartDateTime = startDateObj.toISOString().split('T')[0] + 'T00:00:00Z';
+      queryEndDateTime = endDateObj.toISOString().split('T')[0] + 'T23:59:59Z';
     } else {
-      const startDateObj = new Date();
-      const endDateObj = new Date();
-      endDateObj.setDate(startDateObj.getDate() + (parseInt(duration) || 7));
+      // Fallback: No date information, use current date and default duration (7 days)
+      logger.warn(`[${SERVICE_NAME}] No date information provided. Using current date and default 7-day event window.`);
+      const startDateObj = new Date(); // Current local date
+      // Convert to UTC midnight for consistency
+      const currentUTCDate = new Date(Date.UTC(startDateObj.getFullYear(), startDateObj.getMonth(), startDateObj.getDate()));
       
-      formattedStartDate = startDateObj.toISOString().split('T')[0] + 'T00:00:00Z';
-      formattedEndDate = endDateObj.toISOString().split('T')[0] + 'T23:59:59Z';
+      const endDateObj = new Date(currentUTCDate);
+      endDateObj.setUTCDate(currentUTCDate.getUTCDate() + (parseInt(duration) || 7) - 1); // Use duration if somehow passed, else 7 days
+
+      queryStartDateTime = currentUTCDate.toISOString().split('T')[0] + 'T00:00:00Z';
+      queryEndDateTime = endDateObj.toISOString().split('T')[0] + 'T23:59:59Z';
     }
     
-    const eventsData = await getEvents(destination, formattedStartDate, formattedEndDate);
+    // const eventsData = await getEvents(destination, formattedStartDate, formattedEndDate);
+    logger.info(`[${SERVICE_NAME}] Fetching events for ${destination} from ${queryStartDateTime} to ${queryEndDateTime}`);
+    const eventsData = await getEvents(destination, queryStartDateTime, queryEndDateTime);
     
     const formattedEvents = [];
     

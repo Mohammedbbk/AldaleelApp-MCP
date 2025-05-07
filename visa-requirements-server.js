@@ -1,4 +1,3 @@
-
 require('dotenv').config(); 
 const express = require('express');
 const cors = require('cors');
@@ -6,8 +5,7 @@ const axios = require('axios');
 const { createServerLogger } = require('./server-logger'); 
 
 const PORT = process.env.VISA_REQUIREMENTS_PORT || 8009;
-const BRAVE_MCP_URL = process.env.BRAVE_MCP_URL || `http://localhost:${process.env.BRAVE_PORT || 8010}`; 
-const BRAVE_MCP_URL = process.env.BRAVE_MCP_URL || `http://localhost:${process.env.BRAVE_PORT || 8010}`; // Use port 8010 for Brave LLM
+const BRAVE_MCP_URL = process.env.BRAVE_MCP_URL || `http://localhost:${process.env.BRAVE_PORT || 8010}`; // This points to brave-llm-server.js
 const BRAVE_API_ENDPOINT = process.env.BRAVE_API_ENDPOINT || '/api/chat'; 
 const REQUEST_TIMEOUT = parseInt(process.env.VISA_REQUEST_TIMEOUT) || 25000; 
 
@@ -19,26 +17,57 @@ app.use(cors());
 app.use(express.json()); 
 
 async function getVisaInfoFromLLM(nationality, destination) {
-  const targetUrl = `${BRAVE_MCP_URL}${BRAVE_API_ENDPOINT}`;
-  logger.info(`Querying LLM at ${targetUrl} for visa: ${nationality} -> ${destination}`);
+  // --- Step 1: Retrieve up-to-date information (Simulated RAG - Retrieval part) ---
+  // In a real RAG setup, you would call a search API (e.g., Brave Search API if available, or another search provider)
+  // to get the latest visa information snippets or relevant page content.
+  let retrievedContextFromSearch = "";
+  const searchQuery = `latest visa requirements for ${nationality} citizen traveling to ${destination === 'SA' ? 'Saudi Arabia' : destination}`;
+  logger.info(`[RAG] Simulating search query: "${searchQuery}"`);
+  try {
+    // Placeholder: Simulate a call to a hypothetical Brave Search service or other information retrieval system.
+    // const searchServiceUrl = process.env.ACTUAL_BRAVE_SEARCH_API_URL; // Example: http://localhost:XXXX/search
+    // if (searchServiceUrl) {
+    //   const searchResponse = await axios.get(searchServiceUrl, { params: { query: searchQuery }, timeout: 10000 });
+    //   retrievedContextFromSearch = searchResponse.data.summary || searchResponse.data.snippets.join('\n'); // Adapt based on actual API
+    //   logger.info(`[RAG] Successfully retrieved context from search. Length: ${retrievedContextFromSearch.length}`);
+    // } else {
+    //   logger.warn('[RAG] ACTUAL_BRAVE_SEARCH_API_URL not configured. Using placeholder context.');
+    //   retrievedContextFromSearch = `Placeholder: No live search configured. Current general knowledge about visa for ${nationality} to ${destination} should be used.`;
+    // }
+    // For this example, we'll use a placeholder indicating search wasn't performed live.
+    retrievedContextFromSearch = `Key considerations for ${nationality} traveling to ${destination === 'SA' ? 'Saudi Arabia' : destination} often include specific document validity periods and proof of funds. Always verify with the official embassy or consulate website for the most current details.`;
+    logger.info(`[RAG] Using simulated/placeholder context: "${retrievedContextFromSearch.substring(0,100)}..."`);
+
+  } catch (searchError) {
+    logger.error(`[RAG] Error during simulated search/retrieval step: ${searchError.message}. Proceeding without augmented context.`);
+    retrievedContextFromSearch = "Error retrieving up-to-date information. Please use general knowledge.";
+  }
+  // --- End of Simulated RAG - Retrieval part ---
+
+  const targetUrl = `${BRAVE_MCP_URL}${BRAVE_API_ENDPOINT}`; // This is brave-llm-server.js
+  logger.info(`Querying LLM at ${targetUrl} for visa: ${nationality} -> ${destination === 'SA' ? 'Saudi Arabia' : destination} (with RAG context)`);
+
+  const userQueryForLLM = `What are the visa requirements for a ${nationality} citizen traveling to ${destination === 'SA' ? 'Saudi Arabia' : destination}? Please provide detailed information about visa types, required documents, application process, fees, validity, length of stay, and any specific warnings or important notes. Use any provided context to ensure the information is as up-to-date as possible.`;
 
   const payload = {
     messages: [
       {
         role: 'user',
-        content: `What are the visa requirements for a ${nationality} citizen traveling to ${destination === 'SA' ? 'Saudi Arabia' : destination}? Please provide detailed information about visa types, required documents, application process, fees, validity, length of stay, and any specific warnings or important notes.`
+        content: userQueryForLLM
       }
-    ]
+    ],
+    // This context field is used by brave-llm-server.js to augment its system prompt.
+    context: retrievedContextFromSearch 
   };
 
   try {
-    logger.info(`[getVisaInfoFromLLM] >>> Preparing to POST to ${targetUrl}`, { payload: JSON.stringify(payload) }); // Log payload
+    logger.info(`[getVisaInfoFromLLM] >>> Preparing to POST to ${targetUrl}`, { payload: JSON.stringify(payload) }); 
     const response = await axios.post(
       targetUrl,
       payload,
       { timeout: REQUEST_TIMEOUT }
     );
-    logger.info(`[getVisaInfoFromLLM] <<< Successfully received response from ${targetUrl}`, { status: response.status }); // Log success
+    logger.info(`[getVisaInfoFromLLM] <<< Successfully received response from ${targetUrl}`, { status: response.status }); 
 
     const content = response.data?.choices?.[0]?.message?.content 
                  || response.data?.message?.content          
@@ -56,7 +85,7 @@ async function getVisaInfoFromLLM(nationality, destination) {
     const status = error.response?.status;
     const errorData = error.response?.data;
     const errorCode = error.code; 
-    logger.error(`[getVisaInfoFromLLM] !!! Error calling LLM (${targetUrl}): ${error.message}`, { status, errorCode, errorData: JSON.stringify(errorData) }); // Log error details
+    logger.error(`[getVisaInfoFromLLM] !!! Error calling LLM (${targetUrl}): ${error.message}`, { status, errorCode, errorData: JSON.stringify(errorData) }); 
     if (errorCode === 'ECONNREFUSED') {
        throw new Error(`LLM service connection refused at ${targetUrl}`);
     } else if (errorCode === 'ETIMEDOUT') {
